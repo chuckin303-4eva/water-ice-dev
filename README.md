@@ -2,19 +2,30 @@
 
 ## Purpose
 
-**Status: pending.** Product scope has not been defined yet. This README and the linked docs will be filled in as the project takes shape — see [docs/ROADMAP.md](docs/ROADMAP.md) for current status and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design once it exists.
+**Ice & Water Intelligence** — a location-intelligence SaaS for ice and water vending operators (competitors, market opportunities, expansion sites, host businesses). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design and [docs/ROADMAP.md](docs/ROADMAP.md) for current build phase. The product is early: Phase 1 (MVP) is in progress and the frontend doesn't exist yet.
 
 ## Installation
 
-_TBD — depends on the tech stack chosen in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)._
+Requires Python 3.12 and Docker Desktop (for Postgres).
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate        # Windows; use `source venv/bin/activate` on macOS/Linux
+pip install -r requirements-dev.txt
+```
 
 ## Development environment
 
-_TBD._ Once tooling is chosen:
 1. Clone the repo and check out `develop`.
-2. Copy `.env.example` to `.env` and fill in local values (never commit `.env` — see [docs/SECURITY.md](docs/SECURITY.md)).
-3. Install dependencies and run the local dev setup (documented here once it exists).
-4. Enable local git hooks: `git config core.hooksPath .githooks`.
+2. Copy `.env.example` to `.env` at the repo root and fill in local values (never commit `.env` — see [docs/SECURITY.md](docs/SECURITY.md)).
+3. Start Postgres: `docker compose -f infra/docker-compose.yml --env-file .env up -d`
+4. From `backend/`, with the virtualenv active, run the migration: `alembic upgrade head`
+5. Run the API: `uvicorn app.main:app --reload` — then check `http://localhost:8000/health`
+6. Run tests: `pytest`
+7. Enable local git hooks: `git config core.hooksPath .githooks`
+
+The frontend (React/Vite) doesn't exist yet — see [docs/ROADMAP.md](docs/ROADMAP.md) Phase 1.
 
 ## Deployment
 

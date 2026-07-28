@@ -9,8 +9,23 @@
 
 set -e
 
+# Load repo-root .env if present so app.core.config.settings can resolve
+# DATABASE_URL for test collection (see backend/app/core/config.py).
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
 echo "== pre-commit: tests =="
-echo "  (not configured yet)"
+if [ -f backend/venv/Scripts/python.exe ]; then
+  (cd backend && ./venv/Scripts/python.exe -m pytest)
+elif [ -f backend/venv/bin/python ]; then
+  (cd backend && ./venv/bin/python -m pytest)
+else
+  echo "  backend/venv not found -- create it per README.md before committing backend changes." >&2
+  exit 1
+fi
 
 echo "== pre-commit: lint =="
 echo "  (not configured yet)"
