@@ -76,6 +76,54 @@ Resource pooling (parts stocking, skilled labor) is explicitly a **cross-tenant,
 - Core needs an access-control layer distinguishing tenant-private data (own locations, notes, reports) from intentionally cross-tenant-visible data (resource listings, and the shared market/location intelligence itself).
 - Resource pooling is industry-agnostic (parts and labor needs aren't ice/water-specific), so it lives in core, not in the ice_vending/water_vending modules.
 
+## Market Refresh Engine (ADR-0004)
+
+A "Refresh Market" action re-checks existing `locations` against external data sources and proposes changes — it never writes directly to master data.
+
+```
+Refresh → Compare → Create Validation Queue entries → Human approval → Update locations → Write update_log
+```
+
+This maps directly onto existing tables: `locations` is the master data, `validation_queue` holds proposed changes awaiting a human decision, `update_log` is the permanent change record. One new table, `refresh_runs`, tracks each invocation (see [DATABASE.md](DATABASE.md)).
+
+**Provider interface** — every external data source is a replaceable module behind one interface, so adding, removing, or swapping a source never touches the comparison/queue/approval logic:
+
+```python
+# backend/app/core/market_refresh/providers.py
+class MarketDataProvider(Protocol):
+    slug: str
+    is_free: bool
+    def check_location(self, location: LocationSnapshot) -> list[FieldObservation]: ...
+
+class FieldObservation(NamedTuple):
+    field_name: str
+    observed_value: Any
+    confidence: float
+    source: str        # provider slug, recorded on the validation_queue/update_log row
+    observed_at: datetime
+```
+
+**v1 providers (all free, all enabled by default):**
+- **OpenStreetMap / Overpass API** — business closed (POI removed/tagged disused), business moved (coordinates shifted beyond a threshold), address changed, host business tag changed, new competitor POIs (same amenity/shop tag) within radius of a location.
+- **US Census API** — population, median income, growth rate for a location's tract/block group.
+- **USGS / NOAA** — registered as available provider slots but not wired into any check yet; neither has an obvious mapping to the detections requested (closed/moved/rating/reviews/photos/duplicates). Left unbuilt rather than force-fit into a check that doesn't need them — add a concrete adapter only when a specific use (e.g., flood-zone or elevation as a scoring factor) is defined.
+- **Duplicate detection** is a separate comparison pass, not a provider: locations within a bounding box of each other are fuzzy-matched on name + address; matches above a threshold create a `validation_queue` entry (`entity_type = "location_duplicate"`).
+
+**Rating, review-count, and photo-changed detection is deferred, not built.** No free source in this list carries ratings/reviews/photos — that data lives behind paid APIs (Google Places, Yelp Fusion). Per your paid-API policy and current no-cost constraint, this ships later as its own decision (a new provider module plus an explicit config flag, API key via environment variable, and a recorded justification in DECISIONS.md) — not as part of v1.
+
+**Paid-API gating (policy, operationalized):** a provider with `is_free = False` is disabled unless (1) free sources are confirmed unable to supply the data, (2) enabling it is a recorded decision (new ADR) stating why the benefit justifies the cost, (3) its API key comes from an environment variable and is never committed (per [SECURITY.md](SECURITY.md)). "Benefit exceeds cost" is a business judgment the code cannot verify — the gate is the recorded human decision, not an automated check.
+
+**Confidence score:** starts from a fixed per-source reliability weight (government/official sources score higher than community-maintained ones), adjusted up when a second provider independently reports the same value and down on disagreement. Kept deliberately simple for v1 — refine once real refresh data shows where it's wrong, not before.
+
+**Execution model:** an in-process, rate-limited asyncio task (no new infrastructure — no Redis, no job queue), started by `POST /market-refresh/run` and tracked in `refresh_runs` for progress polling. If the process restarts mid-run, that run is marked incomplete and simply re-triggered — an acceptable trade for a manually-triggered, non-critical-path job at this stage, chosen specifically to avoid adding an always-on infrastructure cost before there's a validated need for one. Runs process locations in batches (oldest `last_verified_at` first) rather than all 100,000+ at once, both to respect free-API rate limits (Overpass's public instance in particular is aggressively throttled) and to keep individual runs finishing in a reasonable time.
+
+**Endpoints (sketch):**
+- `POST /market-refresh/run` — start a run
+- `GET /market-refresh/runs/{id}` — status/progress
+- `GET /validation-queue` — list pending proposed changes
+- `POST /validation-queue/{id}/approve` — applies `proposed_changes` to the target entity, writes `update_log` rows, marks the queue entry approved
+- `POST /validation-queue/{id}/reject` — marks rejected, no changes applied
+
 ## Repository layout (proposed)
 
 ```

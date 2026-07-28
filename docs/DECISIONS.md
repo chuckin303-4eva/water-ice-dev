@@ -115,3 +115,31 @@ Full table list requested: Users, Roles, Permissions, States, Counties, Cities, 
 - `locations` is now a wide table (20+ columns) rather than a thin core table with satellite profile tables. Acceptable given decision 1; if a third industry module is added, expect a migration to peel product-specific columns back out.
 - Every UPDATE statement against a tracked table (`locations` first, likely others later) must be paired with `update_log` inserts at the application layer — this is a discipline to enforce in code review, not something the schema alone guarantees.
 - UUID PKs are marginally larger/slower to index than integers; irrelevant at the stated 100,000+ location scale, and worth it for the ID-type consistency and reduced ID-enumeration exposure across `locations`/`host_businesses`/`competitors`/`brands`.
+
+---
+
+## ADR-0004: Market Refresh Engine — provider architecture, paid-API gating, execution model
+
+Date: 2026-07-27
+Status: Accepted
+
+### Context
+Requested a "Refresh Market" feature that reviews existing locations against external sources, never overwrites data automatically, and routes every proposed change through `validation_queue` → human approval → `locations` update → `update_log`. Required detecting: business closed, business moved, new address, host business changed, rating changed, review count changed, photos changed, duplicate locations, new competitors nearby. Free sources prioritized (OpenStreetMap/Overpass, US Census, USGS, NOAA); paid APIs allowed only when free sources can't provide the data, benefit exceeds cost, and the key is secured. All integrations required to be replaceable modules.
+
+### Decision
+1. **Provider interface**: every external source implements `MarketDataProvider` (`slug`, `is_free`, `check_location(location) -> list[FieldObservation]`), so sources are swappable without touching comparison/queue/approval logic. See [ARCHITECTURE.md](ARCHITECTURE.md#market-refresh-engine-adr-0004).
+2. **v1 ships free-source detections only**: closed/moved/address/host-business changes and new-competitor detection via OpenStreetMap/Overpass; population/income/growth via US Census; duplicate detection via in-app fuzzy matching (not an external provider). USGS and NOAA are named but not wired into any check — no requested detection maps to what they provide; left as registered-but-unbuilt provider slots rather than force-fit.
+3. **Rating/review-count/photo-changed detection is deferred, not built.** No listed free source carries this data — it requires a paid API (Google Places, Yelp Fusion, etc.). Initially approved adding Google Places for this narrow purpose, then reversed after the user clarified they want zero cost incurred at this stage. Deferred to a future ADR made at the point there's budget and a specific provider decision, not built speculatively now.
+4. **Paid-API gating is a recorded human decision, not a code check**: a provider with `is_free = False` stays disabled until a new ADR states free sources were confirmed insufficient and the benefit justifies the cost; its key comes from an environment variable per [SECURITY.md](SECURITY.md). "Benefit exceeds cost" can't be verified programmatically — the ADR requirement *is* the gate.
+5. **Execution: in-process rate-limited asyncio task, no new infrastructure.** No Redis, no Celery/arq job queue. A run is tracked in a new `refresh_runs` table; a mid-run restart just marks the run incomplete for manual re-trigger. Chosen specifically to avoid an always-on infrastructure cost before a validated need for durable/resumable job execution exists.
+6. **New table**: `refresh_runs` (see [DATABASE.md](DATABASE.md)). No changes to `validation_queue`/`update_log` schemas — the refresh engine is a producer of `validation_queue` rows and a consumer of the approval flow, not a new data model.
+
+### Alternatives considered
+- **Redis + arq/Celery for job execution**: correct choice once refresh runs are frequent, large, or business-critical enough to need retries/resumability/observability. Rejected for now — adds an always-on paid/operational dependency before there's a user validating the need. Revisit when refresh runs actually need to survive a restart or run on a schedule.
+- **Building the Google Places adapter now, disabled by default**: would have the code ready to flip on later. Rejected — maintaining an unused paid-integration adapter is speculative work with no current benefit; building it when there's an actual decision to enable it is cheap enough to defer.
+- **Force-fitting USGS/NOAA into existing checks**: rejected — no honest mapping exists between what those APIs provide and what was asked to be detected; better to leave the slot open than invent a use.
+
+### Consequences
+- Rating/review/photo drift on existing locations will not be caught until a paid provider is deliberately added later — an accepted gap, not an oversight, given the explicit cost constraint.
+- Refresh runs are not resumable and not scheduled in v1 — a run is a manual, one-shot action tied to the lifetime of the process that started it. Acceptable for a manually-triggered button; would need revisiting before this becomes an automated/scheduled job.
+- Overpass's public instance is rate-limited; refresh runs must batch and throttle (oldest-`last_verified_at`-first) rather than sweep all locations at once, which means a full refresh of 100,000+ locations happens over multiple runs/sessions, not instantly.

@@ -139,6 +139,13 @@ Indexed on `(entity_type, entity_id)` in all three.
 - `id` (PK), `organization_id` (FK, nullable — null is a global/system default, set is a tenant override), `key`, `value` (JSONB), `description`, `updated_by` (FK → users), `updated_at`
 - Unique on `(organization_id, key)`.
 
+## Market refresh
+
+**refresh_runs** — one row per "Refresh Market" invocation (ADR-0004).
+- `id` (PK), `started_at`, `completed_at` (nullable), `status` (`running`/`completed`/`failed`), `triggered_by` (FK → users, nullable — null for a future scheduled run, always set for v1's manual button), `locations_reviewed`, `changes_queued`, `providers_used` (JSONB list of provider slugs actually run), `error_message` (nullable)
+
+A refresh run never writes to `locations` directly — it only creates `validation_queue` entries. `validation_queue.entity_type`/`entity_id` point at the affected `locations`/`competitors` row (or, for duplicate detection, `entity_type = "location_duplicate"` with the candidate duplicate's id inside `proposed_changes`). Approving a queue entry is what writes to `locations` and to `update_log`, per [ARCHITECTURE.md](ARCHITECTURE.md#market-refresh-engine-adr-0004).
+
 ## Indexing plan
 
 - All FK columns listed above are indexed.
