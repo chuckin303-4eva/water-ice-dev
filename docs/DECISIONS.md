@@ -60,7 +60,7 @@ Require commit messages to state what changed, why, and what impact it has. Requ
 ## ADR-0002: Product direction, stack, and core/module architecture
 
 Date: 2026-07-27
-Status: Proposed (pending sign-off on the three open items below)
+Status: Accepted
 
 ### Context
 Product scope is now defined: "Ice & Water Intelligence," a commercial SaaS location-intelligence platform for ice and water vending operators (competitors, market opportunity, expansion sites, host businesses, revenue opportunity, resource pooling), designed so the core platform is industry-independent and ice/water vending are the first of potentially several pluggable industry modules.
@@ -77,12 +77,13 @@ Product scope is now defined: "Ice & Water Intelligence," a commercial SaaS loca
 - **EAV/JSONB blob for module-specific location data** instead of per-module normalized tables: more "flexible" but fights the explicit "normalized tables, avoid duplicate data" requirement and loses indexability/queryability on module attributes at 100,000+ row scale. Rejected in favor of per-module typed tables.
 - **Separate repos per module/service now:** premature at pre-v1 stage with a single maintainer; revisit if/when modules are developed independently by separate teams.
 
-### Open items (not yet decided — tracked here so they don't get silently assumed)
-1. Add PostGIS extension for geospatial indexing/queries (radius search, nearest-neighbor, catchment polygons) — recommended, not yet approved.
-2. Multi-tenancy model: confirm "resource pooling between operators" means cross-tenant collaboration features, not just per-tenant multi-location management — affects whether pooling data is its own core concept or an ice/water-module feature.
-3. Confirm monorepo (vs. split repos) as the ongoing choice, not just the pre-v1 default.
+### Resolved items
+1. **PostGIS: not adopted for v1.** `locations` uses plain `latitude`/`longitude` numeric columns with standard indexing. Radius/nearest-neighbor queries use bounding-box pre-filtering plus application-level distance calculation. Tradeoff accepted deliberately: simpler stack and hosting (no extension dependency) now, at the cost of query precision/performance at very large scale. Revisit with a new ADR if this becomes a measured bottleneck — never add it back silently.
+2. **Multi-tenancy: cross-tenant collaboration, confirmed.** "Resource pooling between operators" is a real cross-tenant feature: organizations can post and respond to resource listings (parts stocking, skilled labor) visible across tenants, not just within one organization's own locations. Implemented as core, industry-agnostic tables (`resource_listings`, `resource_listing_responses` — see [DATABASE.md](DATABASE.md)), since the need for parts/labor isn't ice/water-specific.
+3. **Monorepo confirmed** as the ongoing structure, not just a pre-v1 default.
 
 ### Consequences
 - Adding a new industry (e.g., laundromats, vacuum stations) later means adding a module directory, not touching core schema or core API routes — validates the plugin approach if it holds up through a second module.
 - Per-module normalized tables mean N modules eventually means N migration histories to track, but each is independently reviewable and doesn't risk breaking other modules' data.
-- PostGIS, if approved, requires the hosting Postgres to support the extension — rules out the narrowest/cheapest managed Postgres tiers on some providers; needs checking against chosen host once deployment target is picked.
+- Core now includes a genuine cross-tenant data-visibility exception (resource listings) alongside the default tenant-isolated model — the permission layer must distinguish "tenant-private," "cross-tenant-visible-read-only," and "shared market data" rather than a single is-this-my-org check.
+- Without PostGIS, "expansion catchment area" (polygon-based) analysis from the original goals is not efficiently supported yet; it's deferred to a future ADR alongside a possible PostGIS adoption once real usage justifies it.

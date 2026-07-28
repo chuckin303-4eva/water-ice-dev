@@ -2,7 +2,7 @@
 
 ## Now
 - Repository governance and project scaffolding (done).
-- Resolve open architecture decisions (PostGIS, multi-tenancy scope, monorepo confirmation — see [ARCHITECTURE.md](ARCHITECTURE.md#open-decisions-need-your-sign-off-before-scaffolding)).
+- Architecture decisions resolved: plain lat/lng (no PostGIS for v1), cross-tenant resource pooling, monorepo confirmed — see [DECISIONS.md](DECISIONS.md) ADR-0002.
 - Scaffold backend (FastAPI + SQLAlchemy + Alembic core tables) and frontend (Vite + React + TS + Tailwind shell) per [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Next
@@ -13,9 +13,9 @@
 
 ## Later
 - Competitor and market-opportunity scoring refined with real data.
-- Expansion-site recommendation (catchment analysis — depends on PostGIS decision).
+- Expansion-site recommendation (polygon-based catchment analysis — deferred until/unless PostGIS is adopted; v1 uses radius-based approximation instead).
 - Host-business discovery and outreach tooling.
-- Resource-pooling features (parts stocking, skilled labor) between operators — scope depends on multi-tenancy decision.
+- Cross-tenant resource-pooling marketplace (parts stocking, skilled labor) — core tables defined in [DATABASE.md](DATABASE.md), UI/matching logic built after core platform and first industry module are live.
 - Additional location-based vending industries as modules beyond ice/water.
 - Billing/subscription management for commercial launch.
 

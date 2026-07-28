@@ -62,15 +62,17 @@ On the frontend, module-specific map layers, filters, and report panels register
 - Nginx as reverse proxy / static file server / TLS termination
 - GitHub Actions for CI (lint, type check, tests, security scan on PR; build on merge to `main`)
 
-## Recommended addition: PostGIS
+## Geospatial queries: plain lat/lng (decided, ADR-0002)
 
-Plain PostgreSQL with lat/lng columns and a b-tree index works for basic lookups but not for what this product actually needs: "nearest competitor," "locations within N miles," "which host businesses fall inside this expansion catchment area." Those are geospatial queries, and PostGIS is the standard, well-supported way to do them efficiently (GiST spatial indexes, `ST_DWithin`, `ST_Distance`, polygon containment) instead of hand-rolled haversine math in application code.
+PostGIS was considered and deliberately deferred. For v1, `locations` stores `latitude`/`longitude` as numeric columns with standard indexing; "nearest competitor" / "within N miles" queries run in application code (haversine) or via bounding-box pre-filtering + in-app distance calculation. This is simpler to stand up and host (no extension dependency), at the cost of slower/less precise spatial queries at large scale. Revisit with a new ADR if radius/nearest-neighbor performance becomes a measured bottleneck — do not silently add PostGIS later without recording why.
 
-This is a new dependency (a Postgres extension, available on all major managed Postgres providers) beyond what was originally specified, so it needs your sign-off before I build the schema around it — see open decisions below.
+## Multi-tenancy model (decided, ADR-0002)
 
-## Multi-tenancy model (proposed)
+Each customer is an `organization`. Users belong to one organization and hold roles scoped to that organization. Location/business/market data is shared (it's market intelligence, not each customer's private data) but saved views, notes, scoring weights, and reports are organization-scoped.
 
-Each customer is an `organization`. Users belong to one organization and hold roles scoped to that organization. Location/business/market data is shared (it's market intelligence, not each customer's private data) but saved views, notes, scoring weights, and reports are organization-scoped. This needs confirmation — see open decisions below.
+Resource pooling (parts stocking, skilled labor) is explicitly a **cross-tenant, core-platform feature** — not a per-tenant convenience. Organizations can list resource needs/offers and respond to other organizations' listings. This means:
+- Core needs an access-control layer distinguishing tenant-private data (own locations, notes, reports) from intentionally cross-tenant-visible data (resource listings, and the shared market/location intelligence itself).
+- Resource pooling is industry-agnostic (parts and labor needs aren't ice/water-specific), so it lives in core, not in the ice_vending/water_vending modules.
 
 ## Repository layout (proposed)
 
@@ -104,13 +106,9 @@ water-ice-dev/
 
 ## Non-functional requirements
 
-- Designed for 100,000+ locations: normalized schema, indexed foreign keys, spatial index on location geometry (pending PostGIS decision), pagination on all list endpoints, no N+1 query patterns in list/map views.
-- Multi-tenant data isolation enforced at the query layer (every tenant-scoped query filtered by organization_id), not just at the UI layer.
+- Designed for 100,000+ locations: normalized schema, indexed foreign keys, pagination on all list endpoints, no N+1 query patterns in list/map views.
+- Multi-tenant data isolation enforced at the query layer (every tenant-scoped query filtered by organization_id), not just at the UI layer — with an explicit exception path for the cross-tenant resource-pooling feature.
 
-## Open decisions (need your sign-off before scaffolding)
+## Decisions log
 
-1. **Add PostGIS** as a required Postgres extension for geospatial queries — recommended above.
-2. **Multi-tenancy**: confirm the organization model above matches what you mean by "pool resources between operators" (i.e., is resource-pooling cross-tenant collaboration, or within one operator's own multiple locations?).
-3. **Monorepo**: keeping backend + frontend + infra in this one repo (current default) rather than splitting into separate repos.
-
-See [DECISIONS.md](DECISIONS.md) ADR-0002 for the recorded rationale once these are confirmed.
+Stack, core/module architecture, geospatial approach, multi-tenancy/resource-pooling scope, and monorepo structure are all decided — see [DECISIONS.md](DECISIONS.md) ADR-0001 and ADR-0002 for the recorded rationale.

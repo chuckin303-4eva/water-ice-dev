@@ -1,6 +1,6 @@
 # Database
 
-PostgreSQL. Schema below is a proposed starting point for the core (industry-independent) tables — pending sign-off in [ARCHITECTURE.md](ARCHITECTURE.md#open-decisions-need-your-sign-off-before-scaffolding) on PostGIS and the multi-tenancy model. Industry modules (ice vending, water vending, ...) add their own tables with a foreign key back to `locations`/`businesses`; they do not modify core tables.
+PostgreSQL. Schema below is the core (industry-independent) schema per [ARCHITECTURE.md](ARCHITECTURE.md) and ADR-0002 in [DECISIONS.md](DECISIONS.md). Industry modules (ice vending, water vending, ...) add their own tables with a foreign key back to `locations`/`businesses`; they do not modify core tables.
 
 ## Migration policy (in force now)
 
@@ -32,7 +32,7 @@ PostgreSQL. Schema below is a proposed starting point for the core (industry-ind
 
 **locations** — industry-agnostic physical location.
 - `id` (PK), `name`, `address`, `city`, `state`, `postal_code`
-- `geom` (PostGIS `GEOGRAPHY(Point)`, GiST-indexed) — pending PostGIS approval; interim fallback is `latitude`/`longitude` numeric columns with a plain b-tree index, which does not support radius/nearest queries efficiently
+- `latitude`, `longitude` (numeric, indexed) — plain lat/lng per ADR-0002; radius/nearest-neighbor queries done via bounding-box pre-filter + application-level distance calculation, not a spatial extension
 - `location_type` (enum: e.g. `retail`, `gas_station`, `laundromat`, ...)
 - `created_at`, `updated_at`
 
@@ -43,6 +43,13 @@ PostgreSQL. Schema below is a proposed starting point for the core (industry-ind
 **business_locations** (join table — a business can operate at/relate to multiple locations)
 - `business_id` (FK), `location_id` (FK), `relationship_type` (e.g. `operates`, `hosts`, `competes_at`)
 
+**resource_listings** — cross-tenant resource pooling (parts stocking, skilled labor), per ADR-0002. Core, industry-agnostic.
+- `id` (PK), `organization_id` (FK → organizations, indexed — the posting org), `listing_type` (enum: `parts_offer`, `parts_request`, `labor_offer`, `labor_request`), `title`, `description`, `status` (enum: `open`, `closed`), `created_at`
+- Visibility rule: readable by all organizations (that's the point of pooling); only the owning organization can edit/close it — enforced at the query/permission layer, not by hiding the table.
+
+**resource_listing_responses** — another organization responding to a listing.
+- `id` (PK), `listing_id` (FK → resource_listings, indexed), `responding_organization_id` (FK → organizations, indexed), `message`, `status` (enum: `pending`, `accepted`, `declined`), `created_at`
+
 ## Per-module tables (example: ice_vending)
 
 **ice_vending_profiles**
@@ -52,8 +59,8 @@ Water vending and future industries follow the same pattern: a `<module>_profile
 
 ## Indexing plan
 
-- FK columns: `users.organization_id`, `business_locations.business_id`, `business_locations.location_id`, `<module>_profiles.location_id` — all indexed.
-- `locations.geom`: GiST spatial index (pending PostGIS) for radius/nearest-neighbor queries at 100,000+ rows.
+- FK columns: `users.organization_id`, `business_locations.business_id`, `business_locations.location_id`, `<module>_profiles.location_id`, `resource_listings.organization_id`, `resource_listing_responses.listing_id`, `resource_listing_responses.responding_organization_id` — all indexed.
+- `locations.latitude`, `locations.longitude`: indexed to support bounding-box pre-filtering.
 - `users.email`: unique index.
 - Composite index on `(organization_id, ...)` for any table queried per-tenant in list views, to keep tenant-scoped pagination fast.
 
