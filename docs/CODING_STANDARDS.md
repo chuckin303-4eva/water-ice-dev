@@ -54,6 +54,17 @@ IMPACT: Legitimate users retrying rapidly will see 429s; no schema or API contra
 - Add or update a [DECISIONS.md](DECISIONS.md) entry if the PR makes an architectural decision, not just an implementation choice.
 - No PR merges to `develop` or `main` with failing checks.
 
+## Architecture conflict gate
+
+Before implementing any requested work, check it against this standard, [ARCHITECTURE.md](ARCHITECTURE.md), and [DECISIONS.md](DECISIONS.md). If the work would introduce significant technical debt, duplicate existing functionality, or conflict with the established architecture (the core/module split, an accepted ADR, the stack in ADR-0002):
+
+1. **Stop** — do not write the code.
+2. **Explain why** — name the specific debt, duplication, or conflicting decision.
+3. **Recommend a better solution.**
+4. **Wait for approval** before proceeding, even if that means proceeding with the original request as explicitly overridden.
+
+This applies even when the request is direct and specific — the gate is "explain and wait," not "refuse."
+
 ## General principles
 
 - No new dependency without a one-line justification in the PR description (what it does, why the standard library or an existing dependency isn't enough).
