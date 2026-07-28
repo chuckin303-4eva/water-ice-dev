@@ -1,0 +1,32 @@
+# Secrets / local config — never commit real values
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Dependency directories (per-ecosystem, harmless if unused)
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+out/
+*.log
+
+# Test / coverage output
+coverage/
+.coverage
+.pytest_cache/

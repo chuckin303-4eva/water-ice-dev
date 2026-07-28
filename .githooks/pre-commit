@@ -1,0 +1,24 @@
+#!/bin/sh
+# Pre-commit gate: tests, lint, type check, security scan.
+# Enable with: git config core.hooksPath .githooks
+#
+# Each section is a placeholder until the corresponding tool is adopted
+# (see docs/ARCHITECTURE.md for stack status). Wire in the real command
+# and remove the "not configured yet" echo as each tool lands — do not
+# leave a step silently passing once a real check exists for it.
+
+set -e
+
+echo "== pre-commit: tests =="
+echo "  (not configured yet)"
+
+echo "== pre-commit: lint =="
+echo "  (not configured yet)"
+
+echo "== pre-commit: type check =="
+echo "  (not configured yet)"
+
+echo "== pre-commit: security scan =="
+echo "  (not configured yet)"
+
+exit 0
