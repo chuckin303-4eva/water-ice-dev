@@ -26,6 +26,7 @@ If PowerShell blocks the activation script (`running scripts is disabled on this
 5. Run the API: `uvicorn app.main:app --reload` — then check `http://localhost:8000/health`
 6. Run tests: `pytest`
 7. Enable local git hooks: `git config core.hooksPath .githooks`
+8. There's no signup endpoint yet — create your first login with `python scripts/seed_dev_user.py --org "Test Org" --email you@example.com --password yourpassword`, then `POST /auth/login` with those credentials.
 
 The frontend (React/Vite) doesn't exist yet — see [docs/ROADMAP.md](docs/ROADMAP.md) Phase 1.
 

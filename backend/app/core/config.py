@@ -18,5 +18,13 @@ class Settings(BaseSettings):
     database_url: str
     environment: str = "development"
 
+    # JWT signing. secret_key has no default -- generate one with
+    # `python -c "import secrets; print(secrets.token_urlsafe(32))"` and put
+    # it in .env. Never commit a real value (see docs/SECURITY.md).
+    secret_key: str
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
 
 settings = Settings()
