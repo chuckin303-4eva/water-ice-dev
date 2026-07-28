@@ -8,6 +8,7 @@ Postgres (see README.md / prompts/coding.md).
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 import app.core.models  # noqa: F401 -- registers models on Base.metadata
 from app.core.models.base import Base
@@ -20,7 +21,16 @@ from app.main import app
 
 @pytest.fixture()
 def db_session():
-    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    # StaticPool -- without it, a commit can release the connection back to
+    # the pool and a subsequent checkout (e.g. from FastAPI's threadpool
+    # request handling) may get a fresh, schema-less :memory: database.
+    # StaticPool guarantees exactly one physical connection for the engine's
+    # whole lifetime, shared across threads (hence check_same_thread=False).
+    engine = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = TestingSessionLocal()
