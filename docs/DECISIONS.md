@@ -143,3 +143,40 @@ Requested a "Refresh Market" feature that reviews existing locations against ext
 - Rating/review/photo drift on existing locations will not be caught until a paid provider is deliberately added later — an accepted gap, not an oversight, given the explicit cost constraint.
 - Refresh runs are not resumable and not scheduled in v1 — a run is a manual, one-shot action tied to the lifetime of the process that started it. Acceptable for a manually-triggered button; would need revisiting before this becomes an automated/scheduled job.
 - Overpass's public instance is rate-limited; refresh runs must batch and throttle (oldest-`last_verified_at`-first) rather than sweep all locations at once, which means a full refresh of 100,000+ locations happens over multiple runs/sessions, not instantly.
+
+---
+
+## ADR-0005: Autonomous Execution Policy — replaces the pre-work approval gate
+
+Date: 2026-07-28
+Status: Accepted (supersedes the approval-gate language in ADR-0001's process rules and the "wait for approval" clause of the architecture-conflict gate added earlier the same day)
+
+### Context
+Work on this repo so far required, before any significant change: inspecting the repo, understanding architecture, reviewing docs, identifying dependencies, explaining the proposed approach, and waiting for approval before major architectural changes. In practice this meant frequent stop-and-wait cycles even once project direction was already well established (stack, schema, roadmap all settled by ADR-0002/0003/0004). User replaced this with an explicit autonomous-execution model: keep working through a full milestone, make ordinary implementation and architecture judgment calls independently, and only stop for a short, specific list of situations.
+
+### Decision
+Default mode is autonomous: continue working until a logical milestone is complete, do not stop for routine implementation decisions, do not re-ask for approval once project direction is established, and implement the largest coherent unit of work possible before returning control. When multiple valid implementation choices exist, pick the one that best satisfies simplicity, maintainability, security, scalability, performance, and low operating cost, in that rough priority order (consistent with the priorities already stated for this project). Document significant architectural decisions here in DECISIONS.md as they're made, and continue — do not wait for sign-off on the ADR itself.
+
+**Pause only for:**
+1. A destructive database migration or irreversible data operation.
+2. A change that would knowingly break backward compatibility.
+3. Missing credentials, API keys, licenses, or required external resources.
+4. A legal, compliance, or platform-policy limitation requiring a user decision.
+5. Two or more fundamentally different business strategies that are equally valid, where the choice materially affects the product roadmap.
+
+This supersedes:
+- ADR-0001's "explain your proposed approach, wait for approval before major architectural changes" process rule.
+- The architecture-conflict gate's "wait for approval" step (added earlier the same day, in response to the `/prompts` request): that gate still applies for *detecting* significant tech debt, duplication, or conflicts with an accepted ADR, but the response changes from stop-and-wait to record-and-proceed — explain the conflict, record the chosen resolution in this file, and continue with the recommended alternative, unless the situation independently matches one of the five pause conditions above (e.g. the "conflict" is actually a destructive migration).
+- The PM "give a 6-point status report before implementing, then wait for approval" pre-work checklist: replaced by a post-milestone progress report (completed work, files touched, remaining work, recommended next milestone) given *after* finishing a milestone, followed by immediately continuing to the next one unless interrupted.
+
+Still unaffected: the per-feature business-value/complexity/dependency/risk/impact rundown (PM operating rules, docs/ROADMAP.md) is still stated before starting a feature — it's transparency, not an approval gate, so it no longer pauses for a response.
+
+### Alternatives considered
+- **Keep the approval gate for architecture-relevant work, autonomous only for pure implementation details:** closer to the original model; rejected because the user explicitly asked to stop re-asking "when project direction has already been established" — most architecture on this project already is established (ADR-0002/0003/0004), so this middle ground would have kept triggering exactly the friction being removed.
+- **Fully unconditional autonomy (no pause list at all):** rejected — irreversible/destructive actions and missing-resource situations genuinely need a human, no matter how established the direction is; the five-item list is narrow specifically so it doesn't reintroduce the old friction while still covering the cases that can't be un-done.
+
+### Consequences
+- Multi-step work (e.g. a full Phase 1 feature) can now land as one continuous push with a single post-milestone report, instead of multiple approval checkpoints along the way.
+- Architecture and implementation judgment calls made autonomously must still be recorded here when significant — silence is not an option just because approval isn't required anymore.
+- Destructive migrations, backward-incompatible changes, missing secrets/licenses, legal/compliance limits, and genuine strategic forks still hard-stop — autonomy has a firm edge, not a soft one.
+- If this turns out to move too fast (bad judgment calls slipping through before they're caught), the fix is tightening the pause list or re-adding a checkpoint via a new ADR — not silently reverting to asking before everything again.

@@ -54,16 +54,29 @@ IMPACT: Legitimate users retrying rapidly will see 429s; no schema or API contra
 - Add or update a [DECISIONS.md](DECISIONS.md) entry if the PR makes an architectural decision, not just an implementation choice.
 - No PR merges to `develop` or `main` with failing checks.
 
+## Autonomous Execution Policy (ADR-0005)
+
+Default mode is autonomous. Continue working until a logical milestone is complete; don't stop for routine implementation decisions or re-ask for approval once project direction is already established (which, on this project, most of it is — see the accepted ADRs). Implement the largest coherent unit of work reasonable before returning control. When multiple valid implementation choices exist, pick whichever best satisfies, in rough priority order: simplicity, maintainability, security, scalability, performance, low operating cost. Record significant architectural decisions in [DECISIONS.md](DECISIONS.md) as they're made, and keep going — don't wait for sign-off on the ADR itself.
+
+**Pause and ask only when one of these occurs:**
+1. A destructive database migration or irreversible data operation.
+2. A change that would knowingly break backward compatibility.
+3. Missing credentials, API keys, licenses, or required external resources.
+4. A legal, compliance, or platform-policy limitation requiring a user decision.
+5. Two or more fundamentally different business strategies are equally valid and the choice materially affects the product roadmap.
+
+Otherwise, proceed. When a milestone completes, give a concise progress report — completed work, files created/modified, remaining work, recommended next milestone — then immediately continue to the next planned milestone unless interrupted or reprioritized. See ADR-0005 for the full rationale and what this replaced.
+
 ## Architecture conflict gate
 
 Before implementing any requested work, check it against this standard, [ARCHITECTURE.md](ARCHITECTURE.md), and [DECISIONS.md](DECISIONS.md). If the work would introduce significant technical debt, duplicate existing functionality, or conflict with the established architecture (the core/module split, an accepted ADR, the stack in ADR-0002):
 
-1. **Stop** — do not write the code.
-2. **Explain why** — name the specific debt, duplication, or conflicting decision.
-3. **Recommend a better solution.**
-4. **Wait for approval** before proceeding, even if that means proceeding with the original request as explicitly overridden.
+1. **Explain why** — name the specific debt, duplication, or conflicting decision.
+2. **Recommend a better solution.**
+3. **Record the conflict and the resolution** in [DECISIONS.md](DECISIONS.md).
+4. **Proceed with the recommended alternative** — unless the situation also matches one of the Autonomous Execution Policy's five pause conditions above, in which case stop and wait as specified there.
 
-This applies even when the request is direct and specific — the gate is "explain and wait," not "refuse."
+This applies even when the request is direct and specific. Before ADR-0005 this gate paused for approval every time; it no longer does — explain and record, then act.
 
 ## General principles
 

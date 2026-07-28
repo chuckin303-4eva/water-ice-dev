@@ -6,8 +6,11 @@ This file does not restate it — read it, don't rely on a summary of it.
 Before writing code:
 
 1. Run the [architecture-conflict gate](../docs/CODING_STANDARDS.md#architecture-conflict-gate) —
-   stop, explain, recommend, wait if the work conflicts with existing
-   architecture or duplicates something that exists.
+   if the work conflicts with existing architecture or duplicates
+   something that exists, explain, recommend a better solution, record
+   it in DECISIONS.md, and proceed with the recommendation (per the
+   [Autonomous Execution Policy](../docs/CODING_STANDARDS.md#autonomous-execution-policy-adr-0005),
+   not a stop-and-wait).
 2. Confirm the branch matches the workflow (`feature/*`, `bugfix/*`,
    `hotfix/*` off the right base — see the git workflow table).
 3. Justify any new dependency in one line (what it does, why nothing
