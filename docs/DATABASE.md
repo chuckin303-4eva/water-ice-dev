@@ -1,16 +1,20 @@
 # Database
 
-PostgreSQL. Schema below is the core (industry-independent) schema per [ARCHITECTURE.md](ARCHITECTURE.md) and ADR-0002 in [DECISIONS.md](DECISIONS.md). Industry modules (ice vending, water vending, ...) add their own tables with a foreign key back to `locations`/`businesses`; they do not modify core tables.
+PostgreSQL. Full schema, organized by domain, per ADR-0001/ADR-0002/ADR-0003 in [DECISIONS.md](DECISIONS.md).
 
 ## Migration policy (in force now)
 
 - Every schema change ships as a versioned Alembic migration, never a manual/ad-hoc change against any environment.
 - No destructive migration (dropped column/table, irreversible transform, type narrowing that loses data) merges without a reviewed rollback path and a verified backup immediately before it runs in production.
-- Migrations run in the same order in every environment (local, staging, production) — no environment-specific schema drift.
-- Every migration is reviewed for lock behavior on the target database before it runs against production-scale data (relevant here: adding indexes on a 100,000+ row table should use `CREATE INDEX CONCURRENTLY`).
+- Migrations run in the same order in every environment (local, staging, production) — no environment-specific drift.
+- Adding indexes on large tables uses `CREATE INDEX CONCURRENTLY` to avoid locking `locations` at 100,000+ rows.
 - Each industry module owns migrations for its own tables; core migrations never depend on a module existing.
 
-## Proposed core schema (pending sign-off)
+## History policy: never overwrite, always log
+
+Core mutable tables (especially `locations`) are updated in place for current-state reads — but every UPDATE to a tracked table also writes one row per changed field to `update_log`, in the same transaction. `update_log` is append-only and is the historical record; nothing is ever deleted from it. This gives full change history without turning every table into a versioned/temporal table, which would be overbuilt for data that's mostly append-then-refine rather than branching/versioned. **This interpretation of "never overwrite historical information" is worth confirming** — the alternative is full row-versioning (every update inserts a new row instead of updating), which is heavier but preserves complete point-in-time snapshots, not just field-level diffs.
+
+## Identity & access (from ADR-0002, unchanged)
 
 **organizations** — a customer/tenant.
 - `id` (PK), `name`, `created_at`
@@ -24,47 +28,128 @@ PostgreSQL. Schema below is the core (industry-independent) schema per [ARCHITEC
 **permissions**
 - `id` (PK), `slug` (unique) — e.g. `location:read`, `report:export`
 
-**role_permissions** (join table)
-- `role_id` (FK), `permission_id` (FK)
+**role_permissions** / **user_roles** — join tables, unchanged.
 
-**user_roles** (join table)
-- `user_id` (FK), `role_id` (FK)
+**resource_listings** / **resource_listing_responses** — cross-tenant resource pooling, unchanged from ADR-0002.
 
-**locations** — industry-agnostic physical location.
-- `id` (PK), `name`, `address`, `city`, `state`, `postal_code`
-- `latitude`, `longitude` (numeric, indexed) — plain lat/lng per ADR-0002; radius/nearest-neighbor queries done via bounding-box pre-filter + application-level distance calculation, not a spatial extension
-- `location_type` (enum: e.g. `retail`, `gas_station`, `laundromat`, ...)
-- `created_at`, `updated_at`
+## Geography (new)
 
-**businesses** — an operator or host business entity.
-- `id` (PK), `name`, `business_type` (enum: `vending_operator`, `host`, `competitor`, ...)
-- `organization_id` (FK, nullable — null for businesses that are just market data, set when the business *is* a platform customer)
+Normalized state → county → city hierarchy, referenced by `locations` and `competitors`.
 
-**business_locations** (join table — a business can operate at/relate to multiple locations)
-- `business_id` (FK), `location_id` (FK), `relationship_type` (e.g. `operates`, `hosts`, `competes_at`)
+**states**
+- `id` (PK), `code` (2-letter, unique), `name`
 
-**resource_listings** — cross-tenant resource pooling (parts stocking, skilled labor), per ADR-0002. Core, industry-agnostic.
-- `id` (PK), `organization_id` (FK → organizations, indexed — the posting org), `listing_type` (enum: `parts_offer`, `parts_request`, `labor_offer`, `labor_request`), `title`, `description`, `status` (enum: `open`, `closed`), `created_at`
-- Visibility rule: readable by all organizations (that's the point of pooling); only the owning organization can edit/close it — enforced at the query/permission layer, not by hiding the table.
+**counties**
+- `id` (PK), `state_id` (FK → states, indexed), `fips_code` (unique, nullable), `name`
+- Unique on `(state_id, name)`.
 
-**resource_listing_responses** — another organization responding to a listing.
-- `id` (PK), `listing_id` (FK → resource_listings, indexed), `responding_organization_id` (FK → organizations, indexed), `message`, `status` (enum: `pending`, `accepted`, `declined`), `created_at`
+**cities**
+- `id` (PK), `state_id` (FK → states, indexed), `county_id` (FK → counties, indexed, nullable), `name`
+- Simplification: a city is stored under one primary county even though real-world city boundaries occasionally span counties. Not modeling a city↔county many-to-many unless a real case forces it (YAGNI) — flag if you know this matters for target markets.
 
-## Per-module tables (example: ice_vending)
+ZIP code is **not** a normalized table — it's a plain indexed column on `locations`. ZIP boundaries don't nest cleanly inside city/county boundaries in the real world, so treating ZIP as a child of city would misrepresent actual geography.
 
-**ice_vending_profiles**
-- `id` (PK), `location_id` (FK → locations, unique — one profile per location), `machine_type`, `capacity_lbs`, `installed_at`, module-specific scoring inputs as explicit typed columns (not JSONB) so they stay queryable and indexable.
+## Brands
 
-Water vending and future industries follow the same pattern: a `<module>_profiles` table (or several, if the domain needs more than one) keyed by `location_id`.
+**brands** — a vending brand/franchise a location operates under.
+- `id` (PK, UUID), `organization_id` (FK → organizations, nullable — null means a shared/reference brand visible platform-wide, set means a tenant's own private brand), `name`, `description`, `logo_url`, `created_at`, `updated_at`
+
+## Host businesses
+
+**host_businesses** — the business hosting a vending machine at a location (gas station, laundromat, grocery store, ...).
+- `id` (PK, UUID), `name`, `category` (e.g. `gas_station`, `laundromat`, `grocery`, `convenience`), `phone`, `website`, `created_at`, `updated_at`
+- "Host Category" (a required Location attribute) is read via `locations.host_business_id → host_businesses.category`, not duplicated as a column on `locations` — avoids storing the same fact twice.
+
+## Competitors
+
+Modeled as site-level records — a specific observed rival machine at a specific address — since a location's Competition Score is computed from the density of nearby competitor rows, and the map needs competitor pins with real coordinates, not just a company name.
+
+**competitors**
+- `id` (PK, UUID), `name` (rival brand/operator), `state_id`/`county_id`/`city_id` (FK, indexed), `address`, `latitude`, `longitude` (indexed), `serves_ice` (bool), `serves_water` (bool), `machine_type`, `estimated_market_share`, `last_observed_date`, `source`, `notes`, `created_at`, `updated_at`
+
+## Locations — the central table
+
+`serves_ice`/`serves_water`/`machine_type` live directly on `locations` (ADR-0003): ice and water vending are the entire product today, so these are core columns rather than per-module extension tables. A genuinely new third industry later would require a migration to split product-specific fields out of core — an accepted, deferred cost, not a current problem.
+
+**locations**
+- `id` (PK, **UUID**, server-generated, immutable) — "Permanent UUID" per your requirement
+- `state_id` (FK → states, indexed)
+- `county_id` (FK → counties, indexed)
+- `city_id` (FK → cities, indexed)
+- `zip_code` (indexed)
+- `address`
+- `latitude`, `longitude` (numeric, indexed — plain lat/lng per ADR-0002, no PostGIS)
+- `brand_id` (FK → brands, nullable, indexed)
+- `serves_ice` (bool), `serves_water` (bool) — together express "Ice / Water / Both" as two flags rather than a three-way enum, so "which locations serve ice" is a plain boolean filter and adding a third product later doesn't mean widening an enum
+- `machine_type`
+- `host_business_id` (FK → host_businesses, nullable, indexed)
+- `is_inside` (bool) — "Inside/Outside"
+- `visibility_rating` — visibility of the machine at the site
+- `traffic_score` — foot/vehicle traffic estimate
+- `population` — surrounding population figure
+- `median_income` — "Income"
+- `growth_rate` — "Growth"
+- `competition_score` — derived/computed, snapshotted at last calculation
+- `opportunity_score` — derived/computed, snapshotted at last calculation
+- `confidence_score` — confidence in the data backing this record's scores
+- `status` (e.g. `prospect`, `active`, `inactive`, `lost`, `competitor_occupied`)
+- `created_at`, `updated_at` (auto-managed)
+- `last_verified_at`, `verification_source`
+- `notes`
+
+Not organization-scoped: per ADR-0002, location/market data is shared platform-wide intelligence, not a single tenant's private data. Pursuit of a specific location by a specific organization lives in `opportunities`, not on `locations` itself.
+
+## Opportunities
+
+A location's `opportunity_score` is a computed metric; `opportunities` is the human workflow layer on top of it — tracking who is actually pursuing a given location and how far along they are. Keeping these separate avoids conflating "how good is this site, generically" with "what's the status of our specific pursuit of it."
+
+**opportunities**
+- `id` (PK), `location_id` (FK → locations, indexed), `organization_id` (FK → organizations, indexed — who's pursuing it), `stage` (`identified`/`contacted`/`negotiating`/`won`/`lost`), `assigned_user_id` (FK → users, nullable), `priority`, `target_action_date`, `outcome_notes`, `created_at`, `updated_at`
+
+## Attachments: Photos, Documents, Reviews
+
+These attach to more than one entity type (a location, a host business, a competitor sighting), so they use a polymorphic `entity_type` + `entity_id` pair rather than a separate table per parent. This is the one deliberate exception to "no generic/polymorphic references" in this schema — scoped to attachment/workflow tables, not core domain data.
+
+`locations`, `host_businesses`, `competitors`, and `brands` all use UUID primary keys (ADR-0003), so `entity_id` here is always a UUID regardless of which of the four it points to — no per-entity-type casting needed.
+
+**photos**
+- `id` (PK), `entity_type`, `entity_id`, `file_key`, `caption`, `uploaded_by` (FK → users), `uploaded_at`, `is_primary` (bool)
+
+**documents**
+- `id` (PK), `entity_type`, `entity_id`, `document_type` (`contract`/`permit`/`verification`/`other`), `file_key`, `organization_id` (FK, nullable — set when the document is a specific tenant's private paperwork, e.g. a host agreement, rather than shared reference material), `uploaded_by`, `uploaded_at`, `notes`
+
+**reviews**
+- `id` (PK), `entity_type`, `entity_id`, `source` (`google`/`yelp`/`internal`/`operator`), `rating`, `review_text`, `review_date`, `author_name`, `created_at`
+
+Indexed on `(entity_type, entity_id)` in all three.
+
+## Workflow & audit
+
+**validation_queue** — records awaiting human review before their data is trusted (newly scraped/imported locations, proposed edits, etc.).
+- `id` (PK), `entity_type`, `entity_id`, `proposed_changes` (JSONB — the specific field/value pairs awaiting approval), `reason`, `submitted_by` (FK → users, nullable — null for system/import submissions), `status` (`pending`/`approved`/`rejected`), `reviewed_by` (FK → users, nullable), `reviewed_at`, `created_at`
+
+**update_log** — the append-only audit trail described above.
+- `id` (PK), `entity_type`, `entity_id`, `field_name`, `old_value`, `new_value`, `changed_by` (FK → users, nullable — null for system changes), `change_source` (`manual`/`import`/`system`/`verification`), `changed_at`
+- Indexed on `(entity_type, entity_id)` and on `changed_at` for chronological queries.
+
+**tasks**
+- `id` (PK), `title`, `description`, `organization_id` (FK → organizations, indexed), `assigned_user_id` (FK → users, nullable), `related_entity_type` (nullable), `related_entity_id` (nullable), `status` (`open`/`in_progress`/`done`/`cancelled`), `priority`, `due_date`, `created_by` (FK → users), `created_at`, `updated_at`
+
+**settings**
+- `id` (PK), `organization_id` (FK, nullable — null is a global/system default, set is a tenant override), `key`, `value` (JSONB), `description`, `updated_by` (FK → users), `updated_at`
+- Unique on `(organization_id, key)`.
 
 ## Indexing plan
 
-- FK columns: `users.organization_id`, `business_locations.business_id`, `business_locations.location_id`, `<module>_profiles.location_id`, `resource_listings.organization_id`, `resource_listing_responses.listing_id`, `resource_listing_responses.responding_organization_id` — all indexed.
-- `locations.latitude`, `locations.longitude`: indexed to support bounding-box pre-filtering.
+- All FK columns listed above are indexed.
+- `locations`: `state_id`, `county_id`, `city_id`, `zip_code`, `brand_id`, `host_business_id`, `status`, `latitude`, `longitude`.
+- `competitors`: `state_id`, `county_id`, `city_id`, `latitude`, `longitude`.
 - `users.email`: unique index.
-- Composite index on `(organization_id, ...)` for any table queried per-tenant in list views, to keep tenant-scoped pagination fast.
+- `(entity_type, entity_id)` composite index on `photos`, `documents`, `reviews`, `validation_queue`, `update_log`.
+- `(organization_id, ...)` composite indexes on tenant-scoped list-view tables (`tasks`, `opportunities`, `settings`) to keep pagination fast per tenant.
 
 ## Avoiding duplicate data
 
-- Location and business identity live once in `locations`/`businesses`; every module references them by FK rather than copying name/address/coordinates into module tables.
-- Shared lookup values (location types, business types, relationship types) are enums or small reference tables, not repeated strings.
+- Geography (state/county/city name and code) is normalized once and referenced by FK from `locations`/`competitors`, never repeated as free-text columns.
+- Host category comes from `host_businesses.category` via FK, not duplicated onto `locations`.
+- A location's identity (address, coordinates) lives once in `locations`; attachments and workflow tables reference it by `entity_id`, they don't copy its data.

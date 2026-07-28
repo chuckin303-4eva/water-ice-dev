@@ -23,6 +23,8 @@ Ice vending and water vending (and any future industry) are **modules** that plu
 - Its own scoring/opportunity logic (what makes a good ice-vending site is not what makes a good water-vending site).
 - Its own reports/UI panels, registered into the core UI shell rather than forking it.
 
+**Narrowed by ADR-0003:** `serves_ice`, `serves_water`, and `machine_type` live directly on the core `locations` table rather than in per-module profile tables, since ice/water vending is the entire product today. Industry-specific *scoring logic* and *UI panels* still belong to modules, not core — only these specific always-present product fields were pulled into core for simplicity. See [DATABASE.md](DATABASE.md) and ADR-0003 in [DECISIONS.md](DECISIONS.md).
+
 Concretely, in the backend this is a Python package interface (sketch, not final code):
 
 ```python
