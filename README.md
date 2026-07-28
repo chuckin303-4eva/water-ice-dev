@@ -8,18 +8,20 @@
 
 Requires Python 3.12 and Docker Desktop (for Postgres).
 
-```bash
+```powershell
 cd backend
 python -m venv venv
-venv\Scripts\activate        # Windows; use `source venv/bin/activate` on macOS/Linux
+.\venv\Scripts\Activate.ps1   # PowerShell. cmd.exe: venv\Scripts\activate.bat -- macOS/Linux: source venv/bin/activate
 pip install -r requirements-dev.txt
 ```
+
+If PowerShell blocks the activation script (`running scripts is disabled on this system`), either run `Set-ExecutionPolicy -Scope Process RemoteSigned` first, or skip activation entirely and call the venv's executables directly, e.g. `.\venv\Scripts\alembic.exe upgrade head`, `.\venv\Scripts\pytest.exe`.
 
 ## Development environment
 
 1. Clone the repo and check out `develop`.
 2. Copy `.env.example` to `.env` at the repo root and fill in local values (never commit `.env` — see [docs/SECURITY.md](docs/SECURITY.md)).
-3. Start Postgres: `docker compose -f infra/docker-compose.yml --env-file .env up -d`
+3. Make sure Docker Desktop is actually running (not just installed) — check the system tray for the whale icon. Then start Postgres: `docker compose -f infra/docker-compose.yml --env-file .env up -d`
 4. From `backend/`, with the virtualenv active, run the migration: `alembic upgrade head`
 5. Run the API: `uvicorn app.main:app --reload` — then check `http://localhost:8000/health`
 6. Run tests: `pytest`
