@@ -3,6 +3,7 @@ import type {
   CallNote,
   CreateLocationInput,
   LocationDetail,
+  LocationFilters,
   LocationSummary,
   UpdateLocationInput,
 } from './types'
@@ -12,8 +13,23 @@ interface CalendarLinks {
   outlook: string
 }
 
+function buildLocationQuery(filters?: LocationFilters): string {
+  if (!filters) return ''
+  const params = new URLSearchParams()
+  for (const status of filters.statuses ?? []) {
+    params.append('statuses', status)
+  }
+  if (filters.serves_ice) params.set('serves_ice', 'true')
+  if (filters.serves_water) params.set('serves_water', 'true')
+  if (filters.min_opportunity_score != null) {
+    params.set('min_opportunity_score', String(filters.min_opportunity_score))
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
 export const locationsApi = {
-  list: () => api.get<LocationSummary[]>('/locations'),
+  list: (filters?: LocationFilters) => api.get<LocationSummary[]>(`/locations${buildLocationQuery(filters)}`),
   get: (id: string) => api.get<LocationDetail>(`/locations/${id}`),
   create: (input: CreateLocationInput) => api.post<LocationDetail>('/locations', input),
   update: (id: string, input: UpdateLocationInput) =>

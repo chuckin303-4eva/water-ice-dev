@@ -42,6 +42,19 @@ export interface LocationDetail extends LocationSummary {
   updated_at: string
 }
 
+export interface LocationFilters {
+  statuses?: string[]
+  serves_ice?: boolean
+  serves_water?: boolean
+  min_opportunity_score?: number
+}
+
+export interface CompetitorFilters {
+  serves_ice?: boolean
+  serves_water?: boolean
+  brand?: string
+}
+
 export interface CreateLocationInput {
   address?: string
   latitude?: number

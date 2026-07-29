@@ -40,10 +40,16 @@ def create_competitor(
 
 @router.get("", response_model=list[CompetitorSummary])
 def list_competitors(
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    brand: str | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[CompetitorSummary]:
-    return [CompetitorSummary.model_validate(c) for c in competitor_service.list_competitors(db)]
+    competitors = competitor_service.list_competitors(
+        db, serves_ice=serves_ice, serves_water=serves_water, brand=brand
+    )
+    return [CompetitorSummary.model_validate(c) for c in competitors]
 
 
 @router.get("/{competitor_id}", response_model=CompetitorResponse)

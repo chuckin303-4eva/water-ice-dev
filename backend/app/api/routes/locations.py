@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -42,11 +42,20 @@ def create_location(
 
 @router.get("", response_model=list[LocationSummary])
 def list_locations(
-    status_filter: str | None = None,
+    statuses: list[str] | None = Query(None),
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    min_opportunity_score: float | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[LocationSummary]:
-    locations = location_service.list_locations(db, status=status_filter)
+    locations = location_service.list_locations(
+        db,
+        statuses=statuses,
+        serves_ice=serves_ice,
+        serves_water=serves_water,
+        min_opportunity_score=min_opportunity_score,
+    )
     return [LocationSummary.model_validate(loc) for loc in locations]
 
 

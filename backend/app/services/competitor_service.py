@@ -11,6 +11,7 @@ be corrected/replaced freely as better information comes in.
 
 import uuid
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.competitor import CompetitorCreateRequest, CompetitorResponse, CompetitorUpdateRequest
@@ -73,8 +74,28 @@ def get_competitor(db: Session, competitor_id: uuid.UUID) -> Competitor | None:
     return db.query(Competitor).filter(Competitor.id == competitor_id).first()
 
 
-def list_competitors(db: Session) -> list[Competitor]:
-    return db.query(Competitor).order_by(Competitor.created_at.desc()).all()
+def list_competitors(
+    db: Session,
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    brand: str | None = None,
+) -> list[Competitor]:
+    """Filters (Phase 1, item 7). `serves_ice`/`serves_water` are opt-in
+    narrowing (OR across whichever are set), same semantics and same
+    reasoning as location_service.list_locations -- most competitors
+    won't have these flags filled in either.
+    """
+    query = db.query(Competitor)
+    capability_conditions = []
+    if serves_ice:
+        capability_conditions.append(Competitor.serves_ice.is_(True))
+    if serves_water:
+        capability_conditions.append(Competitor.serves_water.is_(True))
+    if capability_conditions:
+        query = query.filter(or_(*capability_conditions))
+    if brand:
+        query = query.filter(Competitor.brand.ilike(f"%{brand}%"))
+    return query.order_by(Competitor.created_at.desc()).all()
 
 
 def assemble_response(db: Session, competitor: Competitor) -> CompetitorResponse:

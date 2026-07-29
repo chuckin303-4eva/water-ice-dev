@@ -270,3 +270,64 @@ def test_recalculate_score_picks_up_new_competitor(client, test_user: User) -> N
     recalculated = client.post(f"/locations/{location_id}/recalculate-score", headers=headers)
     assert recalculated.status_code == 200
     assert recalculated.json()["competition_score"] > 0
+
+
+def test_filter_by_status(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    create = client.post("/locations", json={"address": "123 Main St"}, headers=headers)
+    location_id = create.json()["id"]
+    client.delete(f"/locations/{location_id}", headers=headers)  # archives it
+    client.post("/locations", json={"address": "456 Other St"}, headers=headers)
+
+    prospects_only = client.get("/locations?statuses=prospect", headers=headers)
+    assert len(prospects_only.json()) == 1
+
+    archived_only = client.get("/locations?statuses=archived", headers=headers)
+    assert len(archived_only.json()) == 1
+
+    both = client.get("/locations?statuses=prospect&statuses=archived", headers=headers)
+    assert len(both.json()) == 2
+
+    unfiltered = client.get("/locations", headers=headers)
+    assert len(unfiltered.json()) == 2
+
+
+def test_filter_by_serves_capability_is_opt_in(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post(
+        "/locations", json={"address": "Ice Only", "serves_ice": True}, headers=headers
+    )
+    client.post(
+        "/locations", json={"address": "Neither Set"}, headers=headers
+    )
+
+    # Unfiltered: both show, including the one with neither flag set.
+    unfiltered = client.get("/locations", headers=headers)
+    assert len(unfiltered.json()) == 2
+
+    # Opting in to serves_ice=true excludes the unconfigured one.
+    ice_only = client.get("/locations?serves_ice=true", headers=headers)
+    assert len(ice_only.json()) == 1
+    assert ice_only.json()[0]["address"] == "Ice Only"
+
+
+def test_filter_by_min_opportunity_score(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    unrated = client.post("/locations", json={"address": "Unrated"}, headers=headers)
+    rated_low = client.post(
+        "/locations",
+        json={"address": "Low score", "visibility_rating": 1, "traffic_score": 1},
+        headers=headers,
+    )
+    rated_high = client.post(
+        "/locations",
+        json={"address": "High score", "visibility_rating": 10, "traffic_score": 10},
+        headers=headers,
+    )
+    assert unrated.json()["opportunity_score"] is None
+    assert rated_low.json()["opportunity_score"] < 50
+    assert rated_high.json()["opportunity_score"] >= 50
+
+    good_only = client.get("/locations?min_opportunity_score=50", headers=headers)
+    addresses = {loc["address"] for loc in good_only.json()}
+    assert addresses == {"High score"}

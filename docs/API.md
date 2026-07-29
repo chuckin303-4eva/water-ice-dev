@@ -30,7 +30,7 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/auth/refresh` | Exchange a refresh token for a new access token | No (refresh token in body) |
 | GET | `/auth/me` | Return the authenticated user | Yes |
 | POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim) | Yes |
-| GET | `/locations` | List locations, optional `?status_filter=` | Yes |
+| GET | `/locations` | List locations. Filters (ADR-0010): `?statuses=` (repeatable, e.g. `statuses=prospect&statuses=active`), `?serves_ice=true`, `?serves_water=true` (opt-in narrowing -- OR across whichever are set, omitted means no filter), `?min_opportunity_score=` | Yes |
 | GET | `/locations/{id}` | Get a location | Yes |
 | PUT | `/locations/{id}` | Update a location (partial; logs every changed field to `update_log`). Setting `visibility_rating`/`traffic_score` (1-10 each) triggers score recalculation (ADR-0009) | Yes |
 | DELETE | `/locations/{id}` | Archive a location (soft delete, status -> `archived`) | Yes |
@@ -39,7 +39,7 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | GET | `/locations/{id}/call-notes/{note_id}/calendar-link` | Google Calendar + Outlook "add event" links for a note's `follow_up_at`. 409 if the note has no follow-up date | Yes |
 | POST | `/locations/{id}/recalculate-score` | Recompute `competition_score`/`opportunity_score`/`confidence_score` without changing any other field -- for when nearby `competitors` data changed instead of the location itself | Yes |
 | POST | `/competitors` | Create a competitor. Requires `name` plus `address`, or `latitude`+`longitude`, or both | Yes |
-| GET | `/competitors` | List competitors | Yes |
+| GET | `/competitors` | List competitors. Filters (ADR-0010): `?serves_ice=true`, `?serves_water=true` (same opt-in OR semantics as locations), `?brand=` (case-insensitive partial match) | Yes |
 | GET | `/competitors/{id}` | Get a competitor | Yes |
 | PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md) | Yes |
 | DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history) | Yes |

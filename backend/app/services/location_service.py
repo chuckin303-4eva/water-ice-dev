@@ -9,6 +9,7 @@ user can create/view/edit a prospect.
 import uuid
 from datetime import datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.location import LocationCreateRequest, LocationResponse, LocationUpdateRequest
@@ -145,10 +146,33 @@ def get_location(db: Session, location_id: uuid.UUID) -> Location | None:
     return db.query(Location).filter(Location.id == location_id).first()
 
 
-def list_locations(db: Session, status: str | None = None) -> list[Location]:
+def list_locations(
+    db: Session,
+    statuses: list[str] | None = None,
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    min_opportunity_score: float | None = None,
+) -> list[Location]:
+    """Filters (Phase 1, item 7). `serves_ice`/`serves_water` are opt-in
+    narrowing, not exclusion -- passing True for one or both requires at
+    least one of the checked capabilities (OR across them), leaving both
+    unset applies no filter at all. A strict "must serve exactly this
+    and not that" filter would hide every freshly-created prospect,
+    since serves_ice/serves_water both default to False until someone
+    fills them in.
+    """
     query = db.query(Location)
-    if status is not None:
-        query = query.filter(Location.status == status)
+    if statuses:
+        query = query.filter(Location.status.in_(statuses))
+    capability_conditions = []
+    if serves_ice:
+        capability_conditions.append(Location.serves_ice.is_(True))
+    if serves_water:
+        capability_conditions.append(Location.serves_water.is_(True))
+    if capability_conditions:
+        query = query.filter(or_(*capability_conditions))
+    if min_opportunity_score is not None:
+        query = query.filter(Location.opportunity_score >= min_opportunity_score)
     return query.order_by(Location.created_at.desc()).all()
 
 

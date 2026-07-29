@@ -181,3 +181,38 @@ def test_calendar_link_without_follow_up_is_conflict(client, test_user: User) ->
 
     response = client.get(f"/competitors/{competitor_id}/calendar-link", headers=headers)
     assert response.status_code == 409
+
+
+def test_filter_by_serves_capability_is_opt_in(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post(
+        "/competitors",
+        json={"address": "Ice Rival", "name": "Ice Rival", "serves_ice": True},
+        headers=headers,
+    )
+    client.post("/competitors", json={"address": "Unknown Rival", "name": "Unknown Rival"}, headers=headers)
+
+    unfiltered = client.get("/competitors", headers=headers)
+    assert len(unfiltered.json()) == 2
+
+    ice_only = client.get("/competitors?serves_ice=true", headers=headers)
+    assert len(ice_only.json()) == 1
+    assert ice_only.json()[0]["name"] == "Ice Rival"
+
+
+def test_filter_by_brand_is_case_insensitive_partial_match(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave", "name": "Site A", "brand": "Twice the Ice"},
+        headers=headers,
+    )
+    client.post(
+        "/competitors",
+        json={"address": "789 Rival Ave", "name": "Site B", "brand": "Kooler Ice"},
+        headers=headers,
+    )
+
+    matches = client.get("/competitors?brand=twice", headers=headers)
+    assert len(matches.json()) == 1
+    assert matches.json()[0]["name"] == "Site A"

@@ -302,3 +302,28 @@ Phase 1 item 6. `locations` has had five score-shaped columns (`visibility_ratin
 - Every prospect stays yellow on the map until its visibility and traffic are rated by hand — this is accurate, not a bug: no real opportunity signal exists yet for an unrated site.
 - If `competitors` data changes near a location that was already scored, its `competition_score`/`opportunity_score` go stale until either the location itself is edited or `recalculate-score` is called — a known, documented limitation, not silent staleness.
 - `visibility_rating`/`traffic_score` scale (1-10) is now fixed by this ADR; changing it later is a breaking change to every already-scored location.
+
+---
+
+## ADR-0010: Filters — server-side, opt-in capability narrowing
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 7. The map fetches full `locations`/`competitors` lists with no pagination; ROADMAP.md's own reasoning for this feature ("map becomes unusable at real data volume") points at eventual scale, not just today's small dev dataset.
+
+### Decision
+1. **Server-side, not client-side.** `GET /locations` and `GET /competitors` gained query-param filters (`statuses`, `serves_ice`, `serves_water`, `min_opportunity_score`, `brand`) applied in the SQL query, not filtered out of an already-fetched in-memory array. Consistent with the stated 100k-location design target (ARCHITECTURE.md non-functional requirements) — filtering in the database is what actually helps at scale; filtering client-side after fetching everything wouldn't.
+2. **`statuses` replaces the narrower single-value `status_filter`** with a repeatable multi-value query param (`?statuses=prospect&statuses=active`), so the UI can support "show these two, hide that one" with checkboxes rather than a single dropdown. No external consumers exist yet (`GET /locations` is not a published third-party API — see ROADMAP's "explicitly out of scope"), so this is a clean rename, not a breaking change to anyone outside this repo.
+3. **`serves_ice`/`serves_water` are opt-in narrowing, not exclusion.** Both default to "don't care" (omitted = no filter); checking one or both means "must serve at least one of the checked capabilities" (OR, not AND). A strict "must match exactly what's checked" filter would hide every freshly-created prospect/competitor, since `serves_ice`/`serves_water` both default to `false` until someone fills them in — the same "don't let an empty field silently look wrong" principle behind every other honesty decision in this project (ADR-0006, ADR-0008, ADR-0009), applied to filter UX rather than data population.
+4. **`min_opportunity_score` naturally excludes unrated locations** (`opportunity_score IS NULL` never satisfies `>=`), which is correct: an unrated site has no opportunity signal to compare, not a low one.
+5. **"Show competitors" is a pure client-side visibility toggle**, not a query param — it doesn't change what's fetched, just whether the already-fetched competitor layer renders. No backend involvement needed for a pure show/hide.
+
+### Alternatives considered
+- **Client-side filtering of the already-fetched full lists**: simpler to build, but works against the schema's own stated scale target and would need to be redone once pagination exists anyway. Rejected in favor of doing it right once.
+- **Keeping `status_filter` as single-value and adding a second param for a second status**: rejected as needless API surface growth compared to one repeatable `statuses` param.
+
+### Consequences
+- Every filter change triggers a new network request (no debounce added yet) — acceptable at current data volume; revisit if it becomes a real UX issue once pagination/larger datasets exist.
+- `min_opportunity_score` only has real meaning once Basic Scoring (ADR-0009) actually produces scores for rated sites — consistent with that feature's own stated limitation, not a new one.

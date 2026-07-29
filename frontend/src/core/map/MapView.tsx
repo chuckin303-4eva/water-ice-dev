@@ -8,6 +8,7 @@ import { AddProspectControl } from './AddProspectControl'
 import { ClusteredMarkers } from './ClusteredMarkers'
 import { CompetitorDetailPanel } from './CompetitorDetailPanel'
 import { CompetitorMarkers } from './CompetitorMarkers'
+import { DEFAULT_FILTERS, FilterPanel, toCompetitorFilters, toLocationFilters, type FiltersState } from './FilterPanel'
 import { LocationDetailPanel } from './LocationDetailPanel'
 
 // Continental-US-ish default view -- reasonable starting point until
@@ -25,20 +26,21 @@ export function MapView() {
   const [competitors, setCompetitors] = useState<CompetitorSummary[]>([])
   const [selected, setSelected] = useState<Selection>(null)
   const [error, setError] = useState<string | null>(null)
+  const [filters, setFilters] = useState<FiltersState>(DEFAULT_FILTERS)
 
   const refreshLocations = useCallback(() => {
     locationsApi
-      .list()
+      .list(toLocationFilters(filters))
       .then(setLocations)
       .catch(() => setError('Could not load locations'))
-  }, [])
+  }, [filters])
 
   const refreshCompetitors = useCallback(() => {
     competitorsApi
-      .list()
+      .list(toCompetitorFilters(filters))
       .then(setCompetitors)
       .catch(() => setError('Could not load competitors'))
-  }, [])
+  }, [filters])
 
   useEffect(() => {
     refreshLocations()
@@ -56,12 +58,15 @@ export function MapView() {
           locations={locations}
           onSelect={(data) => setSelected({ kind: 'location', data })}
         />
-        <CompetitorMarkers
-          competitors={competitors}
-          onSelect={(data) => setSelected({ kind: 'competitor', data })}
-        />
+        {filters.showCompetitors && (
+          <CompetitorMarkers
+            competitors={competitors}
+            onSelect={(data) => setSelected({ kind: 'competitor', data })}
+          />
+        )}
         <AddProspectControl onCreated={refreshLocations} />
         <AddCompetitorControl onCreated={refreshCompetitors} />
+        <FilterPanel filters={filters} onChange={setFilters} />
       </MapContainer>
 
       {selected?.kind === 'location' && (
