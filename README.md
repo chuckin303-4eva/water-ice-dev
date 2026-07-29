@@ -26,7 +26,7 @@ If PowerShell blocks the activation script (`running scripts is disabled on this
 5. Run the API: `uvicorn app.main:app --reload` — then check `http://localhost:8000/health`
 6. Run tests: `pytest`
 7. Enable local git hooks: `git config core.hooksPath .githooks`
-8. There's no signup endpoint yet — create your first login with `python scripts/seed_dev_user.py --org "Test Org" --email you@example.com --password yourpassword`, then `POST /auth/login` with those credentials.
+8. Sign up for your first account through the app itself (see Frontend below), or seed one without a running frontend: `python scripts/seed_dev_user.py --org "Test Org" --email you@example.com --password yourpassword`, then `POST /auth/login` with those credentials.
 
 ### Frontend
 
@@ -37,7 +37,7 @@ cp .env.example .env   # defaults already point at http://localhost:8000 and raw
 npm run dev            # http://localhost:5173
 ```
 
-The backend must be running first (steps above) and its `cors_origins` setting must include the frontend's origin — it already defaults to `http://localhost:5173`. Log in with the same credentials created via `seed_dev_user.py`.
+The backend must be running first (steps above) and its `cors_origins` setting must include the frontend's origin — it already defaults to `http://localhost:5173`. Click "Sign up" on the login screen to create your organization and first account, or log in with credentials created via `seed_dev_user.py`.
 
 ## Deployment
 

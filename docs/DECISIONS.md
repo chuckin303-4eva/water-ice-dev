@@ -353,3 +353,31 @@ Phase 1 item 8. ROADMAP.md's own stated value: "Lets a prospective customer load
 ### Consequences
 - Importing 100 rows takes on the order of ~2 minutes (rate-limit delay dominates) — a real, disclosed trade-off, not a performance bug to "fix" later without also revisiting the free-Nominatim-usage decision (ADR-0004/ADR-0006) that caused it.
 - New runtime dependency: `python-multipart` (required by FastAPI's `UploadFile`/`File` for parsing multipart/form-data uploads).
+
+---
+
+## ADR-0012: Admin dashboard — self-serve registration, two-role model, no permission-slug system
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 9. `organizations`/`users`/`roles`/`permissions`/`role_permissions`/`user_roles` have existed as schema since the original Phase 1 migration (ADR-0003-era), but nothing had ever populated or enforced them: no role/permission concept existed anywhere in the code, no role rows existed in any database, and the only way to create a user at all was `backend/scripts/seed_dev_user.py` — whose own docstring, and `docs/API.md`, both explicitly said self-serve registration was deferred to this exact feature.
+
+### Decision
+1. **Self-serve registration** (`POST /auth/register`): creates a brand-new `Organization` plus its first `User`, who becomes that org's admin, and logs them in immediately (returns tokens, same shape as login). No email verification, no CAPTCHA — both real hardening gaps for a public signup endpoint, explicitly deferred and named here rather than silently shipped as "handled."
+2. **Two system-wide roles only: "admin" and "member".** No arbitrary role names, no fine-grained permission-slug system built or enforced — `permissions`/`role_permissions` stay schema-only and unused. Building a granular permission UI with zero real per-capability checks to gate would be pure unused scaffolding (YAGNI); role-based admin/member is what's actually needed to gate the two new capabilities this feature adds (create a teammate, change someone's role/active status). Nothing else in the app becomes role-gated — locations/competitors stay shared platform-wide data per ADR-0002, unaffected by this.
+3. **Roles are get-or-created lazily** (`organization_service.get_or_create_role`), the same pattern geography rows already use, rather than seeded via a one-time data migration — avoids migration/dev-db seed drift. `Role.organization_id` stays `NULL` for both roles, per that column's own documented "nullable for system-wide roles" intent.
+4. **No email invite flow.** An admin creating a teammate sets a real password directly, shown once in the response/UI, which the admin shares out-of-band — there's no email service in this project to send an invite through (same honesty pattern as every "no automated X" decision elsewhere: ADR-0006, ADR-0008). Building a fake-looking "invite sent" flow that doesn't actually send anything would be worse than being upfront about it.
+5. **Org lockout prevention: self-modification is blocked, and that's the whole guard.** The only mutation path for `is_active`/role is `PUT /organizations/users/{id}` (admin-only), which unconditionally rejects `user_id == caller's own id` (400). Combined with every org starting with exactly one admin at registration, this alone makes 0 active admins in an org structurally unreachable — whoever calls this endpoint on someone else is necessarily a different, currently-active admin, so at least one admin always survives. An earlier draft of this feature also added a "count active admins, block if <=1" check; it was **provably dead for its intended purpose** given the self-modification block, and it produced a real false-positive (blocking a harmless role change on an already-inactive admin) instead of ever preventing a real lockout — removed rather than patched. See `organization_service.py`'s module docstring for the full reasoning.
+6. **First real use of client-side routing.** `react-router-dom` was installed as a dependency when the map frontend was built (ADR-0007) but never actually wired in — `App.tsx` just showed the map or the login screen based on a boolean. This feature needed real pages (`/login`, `/register`, `/`, `/admin`) with an actual admin-only route guard, so it's the first thing to use the dependency that was already there.
+
+### Alternatives considered
+- **Fine-grained permission slugs from the start** (using the existing `permissions`/`role_permissions` schema as designed): rejected — no endpoint anywhere needs to distinguish "can edit locations" from "can manage billing" yet; building the management UI for permissions nothing checks would be pure theater. Revisit with a new ADR if/when real per-capability gating is actually needed.
+- **Keeping registration deferred further, building only org-internal user management**: rejected — the stale docs (seed script, API.md) explicitly promised registration would arrive with this feature; leaving it deferred again would repeat the same promise-without-delivery gap.
+- **A "last admin" count-based lockout guard**: rejected after being built and found dead — see point 5.
+
+### Consequences
+- No schema changes were needed — every table this feature uses (`organizations`, `users`, `roles`, `user_roles`) already existed. Purely additive service/route/frontend work.
+- `docs/API.md` and the seed script's docstring both referenced this feature as "Phase 1 item 8" (stale relative to the current roadmap, where it's item 9, since Import CSV was inserted ahead of it) — corrected as part of this change.
+- A future real permission system, if ever needed, has to be designed fresh rather than grown from `role_permissions` as originally sketched, since that path was deliberately left unused rather than partially built.

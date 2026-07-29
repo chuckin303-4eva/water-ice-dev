@@ -17,18 +17,27 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
   token. Refresh tokens are **not** rotated on use and are **not**
   revocable before their natural expiry — no server-side revocation list
   exists yet (accepted trade-off, see docs/SECURITY.md).
-- There is no self-serve registration endpoint. Until the Admin dashboard
-  (Phase 1, item 8) exists, the first user in an organization is created
-  via `backend/scripts/seed_dev_user.py`.
+- `POST /auth/register` (ADR-0012) creates a brand-new organization plus
+  its first user (that org's admin) and logs them in immediately. No
+  email verification or CAPTCHA -- deferred, not silently faked.
+- Two system-wide roles exist, `"admin"` and `"member"` (ADR-0012) --
+  `GET /auth/me` and every `/organizations/users` response include the
+  caller's/target's `role`. Only admins can create or modify other users
+  in their organization; any authenticated user can list their own
+  organization's roster.
 
 ## Endpoints
 
 | Method | Path | Description | Auth required |
 |---|---|---|---|
 | GET | `/health` | Liveness check | No |
+| POST | `/auth/register` | Create a new organization + its first (admin) user, and log them in | No |
 | POST | `/auth/login` | Exchange email+password for access+refresh tokens | No |
 | POST | `/auth/refresh` | Exchange a refresh token for a new access token | No (refresh token in body) |
-| GET | `/auth/me` | Return the authenticated user | Yes |
+| GET | `/auth/me` | Return the authenticated user, including `role` | Yes |
+| GET | `/organizations/users` | List your organization's users (id, email, is_active, role, created_at) | Yes |
+| POST | `/organizations/users` | Create a teammate in your organization (admin only). Sets a real password directly -- no email is sent, there's no email service (ADR-0012) | Yes (admin) |
+| PUT | `/organizations/users/{user_id}` | Update a teammate's `is_active` and/or `role` (admin only). Rejects modifying your own account (400) | Yes (admin) |
 | POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim) | Yes |
 | GET | `/locations` | List locations. Filters (ADR-0010): `?statuses=` (repeatable, e.g. `statuses=prospect&statuses=active`), `?serves_ice=true`, `?serves_water=true` (opt-in narrowing -- OR across whichever are set, omitted means no filter), `?min_opportunity_score=` | Yes |
 | POST | `/locations/import` | Bulk-create locations from a CSV file (`multipart/form-data`, field name `file`). Columns: `address` (or `latitude`+`longitude`), `serves_ice`, `serves_water`, `notes`. Max 100 rows per file (422 if exceeded); partial success -- returns `{total_rows, created, errors: [{row, message}]}`, one row's failure doesn't block the rest (ADR-0011) | Yes |

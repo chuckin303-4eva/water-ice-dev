@@ -14,7 +14,7 @@ PostgreSQL. Full schema, organized by domain, per ADR-0001/ADR-0002/ADR-0003 in 
 
 Core mutable tables (especially `locations`) are updated in place for current-state reads — but every UPDATE to a tracked table also writes one row per changed field to `update_log`, in the same transaction. `update_log` is append-only and is the historical record; nothing is ever deleted from it. This gives full change history without turning every table into a versioned/temporal table, which would be overbuilt for data that's mostly append-then-refine rather than branching/versioned. **This interpretation of "never overwrite historical information" is worth confirming** — the alternative is full row-versioning (every update inserts a new row instead of updating), which is heavier but preserves complete point-in-time snapshots, not just field-level diffs.
 
-## Identity & access (from ADR-0002, unchanged)
+## Identity & access (schema from ADR-0002, populated/enforced by ADR-0012)
 
 **organizations** — a customer/tenant.
 - `id` (PK), `name`, `created_at`
@@ -24,11 +24,15 @@ Core mutable tables (especially `locations`) are updated in place for current-st
 
 **roles**
 - `id` (PK), `organization_id` (FK, nullable for system-wide roles), `name`
+- **Implemented** (ADR-0012): exactly two rows exist in practice, `"admin"` and `"member"`, both system-wide (`organization_id = NULL`), get-or-created lazily rather than seeded via a data migration.
 
 **permissions**
 - `id` (PK), `slug` (unique) — e.g. `location:read`, `report:export`
+- **Still schema-only, unused** (ADR-0012) — no endpoint checks a fine-grained permission slug; role-based admin/member is what's actually enforced today. Revisit with a new ADR if/when a real capability needs finer-grained gating than "admin or not."
 
-**role_permissions** / **user_roles** — join tables, unchanged.
+**role_permissions** — join table, unused (see `permissions` above).
+
+**user_roles** — join table, **implemented**: every user created via registration or the Admin dashboard (ADR-0012) gets exactly one row here.
 
 **resource_listings** / **resource_listing_responses** — cross-tenant resource pooling, unchanged from ADR-0002.
 

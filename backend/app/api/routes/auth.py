@@ -2,7 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
-from app.api.schemas.auth import AccessTokenResponse, LoginRequest, RefreshRequest, TokenResponse, UserResponse
+from app.api.schemas.auth import (
+    AccessTokenResponse,
+    LoginRequest,
+    RefreshRequest,
+    RegisterRequest,
+    TokenResponse,
+    UserResponse,
+)
 from app.core.models.user import User
 from app.core.security import (
     InvalidTokenError,
@@ -13,8 +20,24 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
+from app.services import organization_service
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+def register(body: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    try:
+        user = organization_service.register_organization(
+            db, body.organization_name, body.email, body.password
+        )
+    except organization_service.EmailAlreadyRegisteredError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    return TokenResponse(
+        access_token=create_access_token(user.id),
+        refresh_token=create_refresh_token(user.id),
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -52,5 +75,13 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)) -> AccessTokenR
 
 
 @router.get("/me", response_model=UserResponse)
-def me(current_user: User = Depends(get_current_user)) -> User:
-    return current_user
+def me(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> UserResponse:
+    return UserResponse(
+        id=current_user.id,
+        organization_id=current_user.organization_id,
+        email=current_user.email,
+        is_active=current_user.is_active,
+        role=organization_service.get_user_role_name(db, current_user),
+    )

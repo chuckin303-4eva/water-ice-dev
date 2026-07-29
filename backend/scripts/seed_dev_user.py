@@ -1,8 +1,11 @@
-"""Create an organization + user for local login testing.
+"""Create an organization + user for local login testing, without going
+through the real signup flow.
 
-There is no self-serve registration or admin dashboard yet (Phase 1 item
-8 in docs/ROADMAP.md), so this is the only way to get a first user into
-the database. Usage:
+`POST /auth/register` (ADR-0012) is now the normal way to create a new
+organization + admin user -- this script remains as a quick way to seed
+a throwaway dev user without hitting a running server. The resulting
+user has no role assigned (`organization_service.get_user_role_name`
+defaults an unrolled user to "member"). Usage:
 
     python scripts/seed_dev_user.py --org "Test Org" --email you@example.com --password changeme
 """

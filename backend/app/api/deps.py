@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.models.user import User
 from app.core.security import InvalidTokenError, TokenType, decode_token
 from app.db.session import get_db
+from app.services import organization_service
 
 # tokenUrl points at the login endpoint so interactive API docs (/docs) can
 # drive the auth flow; it does not mean login accepts form-encoded data.
@@ -30,3 +31,11 @@ def get_current_user(
         raise unauthorized
 
     return user
+
+
+def require_admin(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> User:
+    if not organization_service.user_is_admin(db, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
