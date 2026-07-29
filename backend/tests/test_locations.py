@@ -222,3 +222,51 @@ def test_calendar_link_without_follow_up_is_conflict(client, test_user: User) ->
         f"/locations/{location_id}/call-notes/{note_id}/calendar-link", headers=headers
     )
     assert response.status_code == 409
+
+
+def test_new_location_has_competition_score_but_no_opportunity_score(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    response = client.post("/locations", json={"address": "123 Main St"}, headers=headers)
+    body = response.json()
+    assert body["competition_score"] == 0.0
+    assert body["opportunity_score"] is None
+    assert body["confidence_score"] == 0.0
+
+
+def test_location_with_ratings_gets_opportunity_score(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    response = client.post(
+        "/locations",
+        json={"address": "123 Main St", "visibility_rating": 8, "traffic_score": 7},
+        headers=headers,
+    )
+    body = response.json()
+    assert body["visibility_rating"] == 8
+    assert body["traffic_score"] == 7
+    assert body["opportunity_score"] is not None
+    assert body["confidence_score"] == 100.0
+
+
+def test_visibility_rating_out_of_range_rejected(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    response = client.post(
+        "/locations", json={"address": "123 Main St", "visibility_rating": 11}, headers=headers
+    )
+    assert response.status_code == 422
+
+
+def test_recalculate_score_picks_up_new_competitor(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    create = client.post("/locations", json={"address": "123 Main St"}, headers=headers)
+    location_id = create.json()["id"]
+    assert create.json()["competition_score"] == 0.0
+
+    client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave", "name": "Rival Ice", "latitude": 39.7392, "longitude": -104.9903},
+        headers=headers,
+    )
+
+    recalculated = client.post(f"/locations/{location_id}/recalculate-score", headers=headers)
+    assert recalculated.status_code == 200
+    assert recalculated.json()["competition_score"] > 0

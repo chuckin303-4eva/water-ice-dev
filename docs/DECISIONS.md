@@ -276,3 +276,29 @@ Instead built a copy/paste-assisted quick-entry: the user manually selects and c
 User tried the paste-matching UI once and preferred a straightforward manual form instead -- plain small fields (location name, brand, address, website, phone, contact name, email), no text-matching step, plus the same follow-up-to-calendar pattern already built for location call notes. `parseMapsListing.ts` was removed (dead code, no longer called from anywhere) rather than left unused.
 
 Schema widened again: `brand` (free text with a `<datalist>` of suggestions -- Twice the Ice, Kooler Ice, Watermill Express -- rather than a link to the shared `brands` table, since this needs no more structure than an autocomplete hint and competitors aren't tenant-owned records the way a location's brand relationship might eventually be), `website`, `phone`, `contact_name`, `contact_email`, and `follow_up_at`. `follow_up_at` lives directly on `competitors` (not a separate call-notes table like locations' `location_call_notes`) since competitors don't need a call history -- one pending follow-up at a time is enough, consistent with ADR-0008's "corrected freely, not audited" treatment of this table. `GET /competitors/{id}/calendar-link` reuses `calendar_link_service` unchanged (it was already generic over title/start/details/location).
+
+---
+
+## ADR-0009: Basic scoring — what's computed for real vs. deferred
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 6. `locations` has had five score-shaped columns (`visibility_rating`, `traffic_score`, `population`, `median_income`, `growth_rate`, `competition_score`, `opportunity_score`, `confidence_score`) since the original Phase 1 schema (ADR-0003) — none had ever been populated, exposed via the API, or given a defined scale. The map (ADR-0007/ADR-0008) already reads `opportunity_score` to color prospect pins green; this feature is what starts writing real values to it.
+
+### Decision
+1. **`competition_score`: real and automatic.** Computed from actual distance to nearby rows in `competitors` (now populated per ADR-0008) — app-level haversine, no PostGIS, per ADR-0002. Bounding-box pre-filter, then exact distance on the smaller candidate set. Each competitor within 10 miles contributes `100/(1+distance_miles)`, summed and capped at 100. Zero nearby competitors correctly yields 0 — a real, confident answer, not a missing value.
+2. **`opportunity_score`: real, but requires input.** A weighted composite: 35% visibility, 35% traffic, 30% `(100 - competition_score)`. `visibility_rating` and `traffic_score` are newly exposed via the API for the first time as manually-entered 1-10 ratings (their scale was never defined before this). **`opportunity_score` is `None` until both are set** — computing a confident-looking number from missing inputs would misrepresent the score, the same honesty bar as every other "no free data source" decision in this project (ADR-0006, ADR-0008).
+3. **`population`/`median_income`/`growth_rate` are NOT used.** No free demographic data source has been wired — that's the Market Refresh Engine (ADR-0004), scheduled Phase 3. Leaving them out of the formula entirely rather than defaulting them to zero, which would silently bias every score toward "bad opportunity."
+4. **`confidence_score` measures input completeness, not site quality**: 0 with neither rating set, 50 with one, 100 with both.
+5. **Recalculation**: automatic on every location create/update (covers the common case — rating a site, or moving its pin). A standalone `POST /locations/{id}/recalculate-score` covers the case a create/update doesn't: new competitor data appeared nearby without the location itself changing. No reactive recompute-on-every-nearby-competitor-write for this "Basic" pass — that's real complexity (which locations are "nearby" a given competitor write) deferred until it's actually needed, not an oversight.
+
+### Alternatives considered
+- **Defaulting missing demographic/rating fields to a neutral midpoint (e.g., 50) to always produce a number**: rejected — indistinguishable from a real "average" site, which is worse than an honest `None` that visibly prompts the user to rate the site.
+- **A reactive trigger that recomputes every location's score whenever any competitor changes**: rejected for v1 — real cost (which locations are within range of a given competitor write) with no demonstrated need yet at this data volume; the explicit recalculate endpoint covers the same need on demand.
+
+### Consequences
+- Every prospect stays yellow on the map until its visibility and traffic are rated by hand — this is accurate, not a bug: no real opportunity signal exists yet for an unrated site.
+- If `competitors` data changes near a location that was already scored, its `competition_score`/`opportunity_score` go stale until either the location itself is edited or `recalculate-score` is called — a known, documented limitation, not silent staleness.
+- `visibility_rating`/`traffic_score` scale (1-10) is now fixed by this ADR; changing it later is a breaking change to every already-scored location.

@@ -1,5 +1,11 @@
 import { api } from './client'
-import type { CallNote, CreateLocationInput, LocationDetail, LocationSummary } from './types'
+import type {
+  CallNote,
+  CreateLocationInput,
+  LocationDetail,
+  LocationSummary,
+  UpdateLocationInput,
+} from './types'
 
 interface CalendarLinks {
   google: string
@@ -10,9 +16,10 @@ export const locationsApi = {
   list: () => api.get<LocationSummary[]>('/locations'),
   get: (id: string) => api.get<LocationDetail>(`/locations/${id}`),
   create: (input: CreateLocationInput) => api.post<LocationDetail>('/locations', input),
-  update: (id: string, input: Partial<CreateLocationInput>) =>
+  update: (id: string, input: UpdateLocationInput) =>
     api.put<LocationDetail>(`/locations/${id}`, input),
   archive: (id: string) => api.delete<void>(`/locations/${id}`),
+  recalculateScore: (id: string) => api.post<LocationDetail>(`/locations/${id}/recalculate-score`),
   listCallNotes: (id: string) => api.get<CallNote[]>(`/locations/${id}/call-notes`),
   addCallNote: (id: string, noteText: string, followUpAt?: string) =>
     api.post<CallNote>(`/locations/${id}/call-notes`, { note_text: noteText, follow_up_at: followUpAt }),

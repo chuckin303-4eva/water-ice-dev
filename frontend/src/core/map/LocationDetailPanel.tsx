@@ -7,22 +7,62 @@ import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 interface Props {
   location: LocationSummary
   onClose: () => void
+  onChanged: () => void
 }
 
-export function LocationDetailPanel({ location, onClose }: Props) {
+export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
   const [detail, setDetail] = useState<LocationDetail | null>(null)
   const [notes, setNotes] = useState<CallNote[]>([])
   const [noteText, setNoteText] = useState('')
   const [followUpAt, setFollowUpAt] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [editingScore, setEditingScore] = useState(false)
+  const [visibilityRating, setVisibilityRating] = useState('')
+  const [trafficScore, setTrafficScore] = useState('')
+  const [recalculating, setRecalculating] = useState(false)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useEffect(() => {
     setDetail(null)
     setNotes([])
-    locationsApi.get(location.id).then(setDetail).catch(() => setError('Could not load details'))
+    locationsApi
+      .get(location.id)
+      .then((d) => {
+        setDetail(d)
+        setVisibilityRating(d.visibility_rating?.toString() ?? '')
+        setTrafficScore(d.traffic_score?.toString() ?? '')
+      })
+      .catch(() => setError('Could not load details'))
     locationsApi.listCallNotes(location.id).then(setNotes).catch(() => undefined)
   }, [location.id])
+
+  async function handleSaveRatings(event: FormEvent) {
+    event.preventDefault()
+    try {
+      const updated = await locationsApi.update(location.id, {
+        visibility_rating: visibilityRating === '' ? undefined : Number(visibilityRating),
+        traffic_score: trafficScore === '' ? undefined : Number(trafficScore),
+      })
+      setDetail(updated)
+      setEditingScore(false)
+      onChanged()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save ratings')
+    }
+  }
+
+  async function handleRecalculate() {
+    setRecalculating(true)
+    try {
+      const updated = await locationsApi.recalculateScore(location.id)
+      setDetail(updated)
+      onChanged()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not recalculate score')
+    } finally {
+      setRecalculating(false)
+    }
+  }
 
   async function handleGetCalendarLink(noteId: number) {
     try {
@@ -62,6 +102,81 @@ export function LocationDetailPanel({ location, onClose }: Props) {
         </button>
       </div>
       <p className="mb-3 text-xs text-slate-500">Status: {location.status}</p>
+
+      {detail && !editingScore && (
+        <div className="mb-3 rounded border border-slate-100 bg-slate-50 p-2 text-xs text-slate-600">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold text-slate-700">Score</span>
+            <button
+              type="button"
+              onClick={handleRecalculate}
+              disabled={recalculating}
+              className="text-blue-600 underline disabled:opacity-50"
+            >
+              {recalculating ? 'Recalculating…' : 'Recalculate'}
+            </button>
+          </div>
+          <p>
+            Opportunity:{' '}
+            {detail.opportunity_score != null ? detail.opportunity_score : 'not scored yet'}
+          </p>
+          <p>Competition: {detail.competition_score}</p>
+          <p>
+            Visibility: {detail.visibility_rating ?? 'not rated'} / Traffic:{' '}
+            {detail.traffic_score ?? 'not rated'}
+          </p>
+          {detail.opportunity_score == null && (
+            <p className="mt-1 text-slate-400">
+              Rate visibility and traffic below to get an opportunity score.
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={() => setEditingScore(true)}
+            className="mt-1 text-blue-600 underline"
+          >
+            Rate this site
+          </button>
+        </div>
+      )}
+
+      {detail && editingScore && (
+        <form
+          onSubmit={handleSaveRatings}
+          className="mb-3 space-y-2 rounded border border-slate-100 bg-slate-50 p-2 text-xs"
+        >
+          <label className="block text-slate-500">Visibility (1-10)</label>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={visibilityRating}
+            onChange={(e) => setVisibilityRating(e.target.value)}
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <label className="block text-slate-500">Traffic (1-10)</label>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={trafficScore}
+            onChange={(e) => setTrafficScore(e.target.value)}
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <div className="flex gap-2">
+            <button type="submit" className="flex-1 rounded bg-slate-700 px-2 py-1 text-white">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingScore(false)}
+              className="flex-1 rounded border border-slate-300 px-2 py-1"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {detail && (
         <dl className="mb-4 space-y-1 text-xs text-slate-600">

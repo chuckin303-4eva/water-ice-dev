@@ -15,7 +15,7 @@ from app.api.schemas.location import (
 )
 from app.core.models.user import User
 from app.db.session import get_db
-from app.services import calendar_link_service, geocoding_service, location_service
+from app.services import calendar_link_service, geocoding_service, location_service, scoring_service
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -69,6 +69,22 @@ def update_location(
 ) -> LocationResponse:
     location = _get_location_or_404(db, location_id)
     location = location_service.update_location(db, location, body, updated_by=current_user.id)
+    return location_service.assemble_response(db, location)
+
+
+@router.post("/{location_id}/recalculate-score", response_model=LocationResponse)
+def recalculate_score(
+    location_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LocationResponse:
+    """Recomputes competition_score/opportunity_score/confidence_score
+    without touching any other field -- for when nearby competitor data
+    changed rather than the location itself (which already triggers a
+    recalculation automatically on create/update).
+    """
+    location = _get_location_or_404(db, location_id)
+    scoring_service.recalculate_scores(db, location)
     return location_service.assemble_response(db, location)
 
 

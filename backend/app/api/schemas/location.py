@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class LocationCreateRequest(BaseModel):
@@ -21,6 +21,12 @@ class LocationCreateRequest(BaseModel):
     machine_type: str | None = None
     host_business_id: uuid.UUID | None = None
     is_inside: bool | None = None
+
+    # Manual 1-10 ratings feeding Basic Scoring (ADR-0009) -- these
+    # columns existed since Phase 1 with no defined scale or API
+    # exposure until now.
+    visibility_rating: int | None = Field(default=None, ge=1, le=10)
+    traffic_score: float | None = Field(default=None, ge=1, le=10)
 
     property_owner_name: str | None = None
     property_owner_phone: str | None = None
@@ -69,6 +75,9 @@ class LocationUpdateRequest(BaseModel):
     host_business_id: uuid.UUID | None = None
     is_inside: bool | None = None
 
+    visibility_rating: int | None = Field(default=None, ge=1, le=10)
+    traffic_score: float | None = Field(default=None, ge=1, le=10)
+
     property_owner_name: str | None = None
     property_owner_phone: str | None = None
     property_management_company: str | None = None
@@ -105,6 +114,12 @@ class LocationResponse(BaseModel):
     host_business_id: uuid.UUID | None
     is_inside: bool | None
     status: str
+
+    visibility_rating: int | None
+    traffic_score: float | None
+    competition_score: float | None
+    opportunity_score: float | None
+    confidence_score: float | None
 
     property_owner_name: str | None
     property_owner_phone: str | None

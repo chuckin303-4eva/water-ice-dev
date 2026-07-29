@@ -95,14 +95,14 @@ Modeled as site-level records — a specific observed rival machine at a specifi
 - `machine_type`
 - `host_business_id` (FK → host_businesses, nullable, indexed)
 - `is_inside` (bool) — "Inside/Outside"
-- `visibility_rating` — visibility of the machine at the site
-- `traffic_score` — foot/vehicle traffic estimate
-- `population` — surrounding population figure
-- `median_income` — "Income"
-- `growth_rate` — "Growth"
-- `competition_score` — derived/computed, snapshotted at last calculation
-- `opportunity_score` — derived/computed, snapshotted at last calculation
-- `confidence_score` — confidence in the data backing this record's scores
+- `visibility_rating` — **Implemented** (ADR-0009). Manually-entered 1-10 rating, exposed via the API for the first time by Basic Scoring.
+- `traffic_score` — **Implemented** (ADR-0009). Manually-entered 1-10 rating (redefined from its original "foot/vehicle traffic estimate" description — no traffic-data API exists or is designed, so a defined manual scale was chosen instead of an undefined "estimate").
+- `population` — surrounding population figure. **Still unused** — no free demographic data source is wired (Market Refresh Engine, ADR-0004, Phase 3); deliberately excluded from the opportunity_score formula, not defaulted to zero.
+- `median_income` — "Income". Same status as `population`.
+- `growth_rate` — "Growth". Same status as `population`.
+- `competition_score` — **Implemented** (ADR-0009). Real-time distance-weighted density of nearby `competitors` rows (app-level haversine, no PostGIS per ADR-0002), snapshotted at last calculation.
+- `opportunity_score` — **Implemented** (ADR-0009). Composite of `visibility_rating` + `traffic_score` + `competition_score`; `null` until both manual ratings are set (no default-guessing).
+- `confidence_score` — **Implemented** (ADR-0009). Reflects how many of the two manual ratings are present (0/50/100), not the site's actual quality.
 - `status` (e.g. `prospect`, `active`, `inactive`, `lost`, `competitor_occupied`)
 - `created_at`, `updated_at` (auto-managed)
 - `last_verified_at`, `verification_source`

@@ -16,7 +16,7 @@ from app.core.models.geography import City, County, State
 from app.core.models.location import Location
 from app.core.models.location_call_note import LocationCallNote
 from app.core.models.update_log import UpdateLog
-from app.services import geocoding_service
+from app.services import geocoding_service, scoring_service
 from app.services.geography_service import resolve_geography
 
 _ENTITY_TYPE = "location"
@@ -32,6 +32,8 @@ _UPDATABLE_FIELDS = (
     "machine_type",
     "host_business_id",
     "is_inside",
+    "visibility_rating",
+    "traffic_score",
     "property_owner_name",
     "property_owner_phone",
     "property_management_company",
@@ -109,6 +111,8 @@ def create_location(db: Session, data: LocationCreateRequest, created_by: int) -
         machine_type=data.machine_type,
         host_business_id=data.host_business_id,
         is_inside=data.is_inside,
+        visibility_rating=data.visibility_rating,
+        traffic_score=data.traffic_score,
         property_owner_name=data.property_owner_name,
         property_owner_phone=data.property_owner_phone,
         property_management_company=data.property_management_company,
@@ -133,6 +137,7 @@ def create_location(db: Session, data: LocationCreateRequest, created_by: int) -
     _log_change(db, location.id, "status", None, location.status, created_by)
     db.commit()
     db.refresh(location)
+    scoring_service.recalculate_scores(db, location)
     return location
 
 
@@ -167,6 +172,11 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
         host_business_id=location.host_business_id,
         is_inside=location.is_inside,
         status=location.status,
+        visibility_rating=location.visibility_rating,
+        traffic_score=float(location.traffic_score) if location.traffic_score is not None else None,
+        competition_score=float(location.competition_score) if location.competition_score is not None else None,
+        opportunity_score=float(location.opportunity_score) if location.opportunity_score is not None else None,
+        confidence_score=float(location.confidence_score) if location.confidence_score is not None else None,
         property_owner_name=location.property_owner_name,
         property_owner_phone=location.property_owner_phone,
         property_management_company=location.property_management_company,
@@ -205,6 +215,7 @@ def update_location(
             setattr(location, field, new_value)
     db.commit()
     db.refresh(location)
+    scoring_service.recalculate_scores(db, location)
     return location
 
 

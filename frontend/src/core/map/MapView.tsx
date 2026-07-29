@@ -65,7 +65,11 @@ export function MapView() {
       </MapContainer>
 
       {selected?.kind === 'location' && (
-        <LocationDetailPanel location={selected.data} onClose={() => setSelected(null)} />
+        <LocationDetailPanel
+          location={selected.data}
+          onClose={() => setSelected(null)}
+          onChanged={refreshLocations}
+        />
       )}
       {selected?.kind === 'competitor' && (
         <CompetitorDetailPanel

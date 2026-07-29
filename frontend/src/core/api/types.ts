@@ -16,6 +16,10 @@ export interface LocationDetail extends LocationSummary {
   serves_water: boolean
   machine_type: string | null
   is_inside: boolean | null
+  visibility_rating: number | null
+  traffic_score: number | null
+  competition_score: number | null
+  confidence_score: number | null
   property_owner_name: string | null
   property_owner_phone: string | null
   property_management_company: string | null
@@ -42,6 +46,11 @@ export interface CreateLocationInput {
   address?: string
   latitude?: number
   longitude?: number
+}
+
+export interface UpdateLocationInput {
+  visibility_rating?: number
+  traffic_score?: number
 }
 
 export interface CallNote {
