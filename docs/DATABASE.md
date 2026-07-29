@@ -63,6 +63,7 @@ ZIP code is **not** a normalized table — it's a plain indexed column on `locat
 **host_businesses** — the business hosting a vending machine at a location (gas station, laundromat, grocery store, ...).
 - `id` (PK, UUID), `name`, `category` (e.g. `gas_station`, `laundromat`, `grocery`, `convenience`), `phone`, `website`, `created_at`, `updated_at`
 - "Host Category" (a required Location attribute) is read via `locations.host_business_id → host_businesses.category`, not duplicated as a column on `locations` — avoids storing the same fact twice.
+- **Implemented** (ADR-0015) — `POST/GET/PUT/DELETE /host-businesses`, `GET ?search=` matches name or category (case-insensitive, partial). Linked to a location via `LocationDetailPanel`'s search-or-create picker, not a separate management page. `DELETE` is rejected (409) while any location still references it — no `ON DELETE` behavior on the FK, and cascading/nulling would be a silent data change. `LocationResponse` exposes the linked business's `host_business_name`/`host_business_category` denormalized, same pattern as `state_code`/`county_name`/`city_name`.
 
 ## Competitors
 

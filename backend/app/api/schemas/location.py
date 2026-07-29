@@ -112,6 +112,8 @@ class LocationResponse(BaseModel):
     serves_water: bool
     machine_type: str | None
     host_business_id: uuid.UUID | None
+    host_business_name: str | None
+    host_business_category: str | None
     is_inside: bool | None
     status: str
 

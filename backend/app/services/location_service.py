@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.api.schemas.location import LocationCreateRequest, LocationResponse, LocationUpdateRequest
 from app.core.models.geography import City, County, State
+from app.core.models.host_business import HostBusiness
 from app.core.models.location import Location
 from app.core.models.location_call_note import LocationCallNote
 from app.core.models.update_log import UpdateLog
@@ -60,6 +61,18 @@ class LocationNotFoundError(Exception):
     pass
 
 
+class InvalidHostBusinessError(Exception):
+    pass
+
+
+def _validate_host_business(db: Session, host_business_id: uuid.UUID | None) -> None:
+    """A raw FK IntegrityError would otherwise surface as an unhelpful
+    500 if the caller passes a host_business_id that doesn't exist.
+    """
+    if host_business_id is not None and db.get(HostBusiness, host_business_id) is None:
+        raise InvalidHostBusinessError(f"Host business {host_business_id} does not exist")
+
+
 def _log_change(
     db: Session,
     location_id: uuid.UUID,
@@ -83,6 +96,7 @@ def _log_change(
 
 
 def create_location(db: Session, data: LocationCreateRequest, created_by: int) -> Location:
+    _validate_host_business(db, data.host_business_id)
     if data.address and data.latitude is not None and data.longitude is not None:
         # Both given -- still geocode once (reverse, from the trusted
         # coordinates) purely to get the state/county/city breakdown in
@@ -180,6 +194,7 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
     state = db.get(State, location.state_id)
     county = db.get(County, location.county_id)
     city = db.get(City, location.city_id)
+    host_business = db.get(HostBusiness, location.host_business_id) if location.host_business_id else None
     return LocationResponse(
         id=location.id,
         state_code=state.code,
@@ -194,6 +209,8 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
         serves_water=location.serves_water,
         machine_type=location.machine_type,
         host_business_id=location.host_business_id,
+        host_business_name=host_business.name if host_business else None,
+        host_business_category=host_business.category if host_business else None,
         is_inside=location.is_inside,
         status=location.status,
         visibility_rating=location.visibility_rating,
@@ -229,6 +246,7 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
 def update_location(
     db: Session, location: Location, data: LocationUpdateRequest, updated_by: int
 ) -> Location:
+    _validate_host_business(db, data.host_business_id)
     for field in _UPDATABLE_FIELDS:
         new_value = getattr(data, field)
         if new_value is None:

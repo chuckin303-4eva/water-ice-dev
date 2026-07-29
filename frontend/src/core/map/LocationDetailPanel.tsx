@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
-import { isPendingReview, type CallNote, type LocationDetail, type LocationSummary } from '../api/types'
+import { isPendingReview, type CallNote, type HostBusiness, type LocationDetail, type LocationSummary } from '../api/types'
+import { HostBusinessPicker } from './HostBusinessPicker'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -21,6 +22,8 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
   const [trafficScore, setTrafficScore] = useState('')
   const [recalculating, setRecalculating] = useState(false)
   const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
+  const [editingHostBusiness, setEditingHostBusiness] = useState(false)
+  const [hostBusinessError, setHostBusinessError] = useState<string | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useEffect(() => {
@@ -56,6 +59,23 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save ratings')
+    }
+  }
+
+  async function handleSelectHostBusiness(hostBusiness: HostBusiness) {
+    setHostBusinessError(null)
+    setQueuedMessage(null)
+    try {
+      const result = await locationsApi.update(location.id, { host_business_id: hostBusiness.id })
+      setEditingHostBusiness(false)
+      if (isPendingReview(result)) {
+        setQueuedMessage('Change submitted for review -- an admin needs to approve it first.')
+      } else {
+        setDetail(result)
+        onChanged()
+      }
+    } catch (err) {
+      setHostBusinessError(err instanceof ApiError ? err.message : 'Could not link host business')
     }
   }
 
@@ -185,6 +205,39 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
           </div>
         </form>
       )}
+
+      {detail && !editingHostBusiness && (
+        <div className="mb-3 rounded border border-slate-100 bg-slate-50 p-2 text-xs text-slate-600">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold text-slate-700">Host business</span>
+            <button
+              type="button"
+              onClick={() => setEditingHostBusiness(true)}
+              className="text-blue-600 underline"
+            >
+              {detail.host_business_name ? 'Change' : 'Link'}
+            </button>
+          </div>
+          {detail.host_business_name ? (
+            <p>
+              {detail.host_business_name}
+              {detail.host_business_category ? ` (${detail.host_business_category})` : ''}
+            </p>
+          ) : (
+            <p className="text-slate-400">No host business linked.</p>
+          )}
+        </div>
+      )}
+
+      {detail && editingHostBusiness && (
+        <div className="mb-3">
+          <HostBusinessPicker
+            onSelect={handleSelectHostBusiness}
+            onCancel={() => setEditingHostBusiness(false)}
+          />
+        </div>
+      )}
+      {hostBusinessError && <p className="mb-3 text-xs text-red-600">{hostBusinessError}</p>}
 
       {detail && (
         <dl className="mb-4 space-y-1 text-xs text-slate-600">

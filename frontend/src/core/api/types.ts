@@ -15,6 +15,9 @@ export interface LocationDetail extends LocationSummary {
   serves_ice: boolean
   serves_water: boolean
   machine_type: string | null
+  host_business_id: string | null
+  host_business_name: string | null
+  host_business_category: string | null
   is_inside: boolean | null
   visibility_rating: number | null
   traffic_score: number | null
@@ -107,6 +110,24 @@ export interface CreateLocationInput {
 export interface UpdateLocationInput {
   visibility_rating?: number
   traffic_score?: number
+  host_business_id?: string
+}
+
+export interface HostBusiness {
+  id: string
+  name: string
+  category: string | null
+  phone: string | null
+  website: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateHostBusinessInput {
+  name: string
+  category?: string
+  phone?: string
+  website?: string
 }
 
 export interface CallNote {

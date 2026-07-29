@@ -32,7 +32,7 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | Feature | Rank | Why this rank |
 |---|---|---|
 | Validation workflow | High | Done (ADR-0014). Opt-in per organization (`require_review_for_submissions`, default off) -- when on, a non-admin's `POST`/`PUT /locations` and per-row `POST /locations/import` are queued to `validation_queue` instead of applying directly; admin writes always bypass it. New admin-only Review page (`/admin/review`) to approve/reject. Deliberately narrow scope: locations only, not competitors (which stay "corrected freely, not audited" per ADR-0008) and not archive/recalculate. Default-off specifically to avoid changing behavior for any existing organization (ADR-0005 backward-compat pause condition). |
-| Host businesses | High | |
+| Host businesses | High | Done (ADR-0015). `host_businesses` and `locations.host_business_id` were designed and migrated back in ADR-0003 but never built on -- no way to create one or see its name/category anywhere. Real CRUD (`/host-businesses`, with `?search=`), `LocationResponse` now exposes the linked business's name/category, and `host_business_id` is validated on location create/update (422 if it doesn't exist, instead of a raw FK error). Frontend: a search-or-create picker on the location detail panel, matching the "find or add" shape already used for competitor brands -- no standalone host-business directory page, not requested. |
 | Opportunity scoring (refined) | High | |
 | Photos | Medium | |
 

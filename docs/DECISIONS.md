@@ -439,3 +439,32 @@ The obvious naive design — "non-admins always get queued" — was checked agai
 - `POST`/`PUT /locations` callers (any future API consumer, not just this frontend) must handle a `202` union response, not just the success shape — documented in API.md.
 - A queued update proposes a full replacement of only the changed fields (`exclude_none`), applied against whatever the location's state is *at approval time*, not at submission time — if the location was also edited directly by an admin in the meantime, the queued proposal could apply on top of a different base state than the submitter saw. No conflict detection is built for this edge case; acceptable for v1 given how narrow a window this requires, revisit if it proves to be a real problem.
 - Rejecting a submission is terminal (no edit-and-resubmit flow) — the submitter would need to redo the submission from scratch. Acceptable for v1; a resubmit-with-edits flow is a natural but unscheduled follow-up.
+
+---
+
+## ADR-0015: Host businesses — search-or-create picker, no unlink, restrict-on-delete
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 2, second item. `host_businesses` (the business hosting a vending machine — gas station, laundromat, ...) and `locations.host_business_id` were both designed and migrated in ADR-0003/the original Phase 1 migration, but nothing was ever built on top of them: no service, no routes, no way to create a host business or see its name/category anywhere in the product. `docs/DATABASE.md` had documented "Host Category" as a required Location attribute read via this FK since day one, but there was no way to actually set it.
+
+### Decision
+1. **Real CRUD for `host_businesses`** (`POST/GET/PUT/DELETE /host-businesses`, `GET` supporting `?search=` matching name or category), same shared-reference-data pattern as `competitors`/`brands` (ADR-0002) — no organization scoping.
+2. **`LocationResponse` gains denormalized `host_business_name`/`host_business_category`**, populated via a lookup in `assemble_response`, matching the existing `state_code`/`county_name`/`city_name` pattern rather than nesting a full object — keeps this response shape consistent with how every other joined reference is already exposed.
+3. **`host_business_id` is now validated on location create/update**, returning `422` with a clear message if the id doesn't exist, instead of letting a raw FK `IntegrityError` surface as an unhandled `500`. This is new rigor this feature specifically enables (there was no `host_business_service.get()` to validate against before); `brand_id` remains unvalidated for the same reason it always was — no `Brand` service exists yet, a separate, already-known gap (see Consequences).
+4. **Frontend: search-or-create picker (`HostBusinessPicker`), not a rigid category dropdown or a separate management page.** Because `host_businesses` is a real normalized table (not free text), a location gets linked by searching existing rows first and falling back to a compact inline create form — mirrors the "find or add" shape this product already uses for competitor brand suggestions, and keeps `category` as free text with a `<datalist>` of examples (`gas_station`/`laundromat`/`grocery`/`convenience`) rather than a fixed enum, consistent with how `competitors.brand` is handled (ADR-0008 addendum). No standalone host-business directory/admin page was built — not requested, and the inline picker is sufficient for linking, which is the only operation the product currently needs.
+5. **Deleting a host business still linked to a location is rejected (409), not cascaded.** `locations.host_business_id` has no `ON DELETE` behavior configured, so an unhandled delete would otherwise surface as a raw `IntegrityError`; silently nulling out every referencing location's field would also be an unrequested silent data change. The caller must actually resolve the reference first.
+6. **No "unlink" affordance in v1.** Setting a location's `host_business_id` back to empty isn't supported by the location update endpoint's existing "only touch fields that are explicitly present, `None` means unset" convention — this is a pre-existing limitation of `LocationUpdateRequest`/`update_location` that already applied to every other optional field (e.g. `machine_type` can't be cleared once set either), not a new gap introduced by this feature. Not fixed here since it's out of this feature's scope; a real "clear this field" mechanism (e.g. a sentinel value or `PATCH`-with-explicit-null semantics) would need its own decision if it's ever needed broadly, not a one-off carve-out for host businesses.
+
+### Alternatives considered
+- **A fixed enum for `category`**: rejected — the schema's own documentation already described category as example values, not a closed set, and this product's established pattern (`competitors.brand`) is free text with suggestions, not a rigid enum.
+- **Nesting a full `host_business` object in `LocationResponse`** instead of denormalized name/category fields: rejected for consistency — every other joined reference (`state_code`/`county_name`/`city_name`) is already flattened, and a location only ever needs the host business's display info, not its full record, in this context.
+- **A standalone host-business list/management page**: rejected as unrequested scope — nothing today needs to browse host businesses independently of linking one to a location.
+- **Cascading delete (nulling out referencing locations)**: rejected — silently clearing a location's host business as a side effect of an unrelated delete elsewhere is exactly the kind of silent data change this project avoids.
+
+### Consequences
+- `brand_id`'s lack of validation (no `Brand` CRUD/service exists) is now a visible inconsistency next to the newly-validated `host_business_id` — a pre-existing gap, not introduced here, but now more obviously worth a future pass if `brands` ever gets built out the same way.
+- A location's host business, once linked, can only be *changed* to a different one, never cleared back to none, until a general "clear an optional field" mechanism is designed — a known, narrow limitation, not silent.
+- 12 new backend tests (115 total) covering CRUD, search, the 409-in-use guard, and location integration (denormalized fields, 422 on invalid id); verified end-to-end in a real browser (search with no matches, inline create, persisted link confirmed via reload, 409 on deleting an in-use host business via curl).
