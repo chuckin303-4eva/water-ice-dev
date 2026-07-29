@@ -76,3 +76,28 @@ class Location(Base):
     last_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     verification_source: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # --- Prospecting fields (docs/DECISIONS.md ADR-0006) ---
+    # All manually entered. Property ownership has no free nationwide
+    # lookup source (confirmed -- only paid parcel-data APIs exist); sewer
+    # availability has no equivalent public dataset either. Power/water
+    # utility auto-lookup is designed but deferred (ADR-0006), not built
+    # here -- these columns hold whatever's found, by hand or later by a
+    # provider, with the same meaning either way.
+    property_owner_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    property_owner_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    property_management_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    property_management_contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    property_management_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    primary_contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    primary_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    expected_unit_size: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    power_connection_location: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    power_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    power_voltage: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    water_connection_location: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    water_company: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sewer_connection_availability: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    sewer_connection_location: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    pricing_estimate_monthly: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    pricing_estimate_notes: Mapped[str | None] = mapped_column(String(1000), nullable=True)

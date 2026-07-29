@@ -99,6 +99,23 @@ Modeled as site-level records — a specific observed rival machine at a specifi
 
 Not organization-scoped: per ADR-0002, location/market data is shared platform-wide intelligence, not a single tenant's private data. Pursuit of a specific location by a specific organization lives in `opportunities`, not on `locations` itself.
 
+**Prospecting fields (ADR-0006)** — all manually entered unless noted; see ADR-0006 for exactly what is/isn't automatable and why:
+- `property_owner_name`, `property_owner_phone`
+- `property_management_company`, `property_management_contact_name`, `property_management_contact_phone`
+- `primary_contact_name`, `primary_contact_phone`
+- `expected_unit_size` — free text (e.g. "10x10 ft")
+- `power_connection_location`, `power_company`, `power_voltage` — power company auto-lookup designed (EIA + OpenEI URDB, both free) but not built yet
+- `water_connection_location`, `water_company` — water company auto-lookup designed (EPA service-area dataset, free) but not built yet
+- `sewer_connection_availability`, `sewer_connection_location` — no automatable source found; stays manual indefinitely
+- `pricing_estimate_monthly`, `pricing_estimate_notes`
+
+Property ownership fields above stay manual indefinitely too — confirmed no free nationwide parcel-ownership API exists (ADR-0006).
+
+## Location call notes
+
+**location_call_notes** — a log of prospecting calls, append-only (never edited/deleted).
+- `id` (PK), `location_id` (FK → locations, indexed), `note_text`, `call_date`, `follow_up_at` (nullable, indexed — when set, this is what a calendar-link endpoint turns into a Google Calendar/Outlook event), `created_by` (FK → users), `created_at`
+
 ## Opportunities
 
 A location's `opportunity_score` is a computed metric; `opportunities` is the human workflow layer on top of it — tracking who is actually pursuing a given location and how far along they are. Keeping these separate avoids conflating "how good is this site, generically" with "what's the status of our specific pursuit of it."
@@ -128,9 +145,9 @@ Indexed on `(entity_type, entity_id)` in all three.
 **validation_queue** — records awaiting human review before their data is trusted (newly scraped/imported locations, proposed edits, etc.).
 - `id` (PK), `entity_type`, `entity_id`, `proposed_changes` (JSONB — the specific field/value pairs awaiting approval), `reason`, `submitted_by` (FK → users, nullable — null for system/import submissions), `status` (`pending`/`approved`/`rejected`), `reviewed_by` (FK → users, nullable), `reviewed_at`, `created_at`
 
-**update_log** — the append-only audit trail described above.
-- `id` (PK), `entity_type`, `entity_id`, `field_name`, `old_value`, `new_value`, `changed_by` (FK → users, nullable — null for system changes), `change_source` (`manual`/`import`/`system`/`verification`), `changed_at`
-- Indexed on `(entity_type, entity_id)` and on `changed_at` for chronological queries.
+**update_log** — the append-only audit trail described above. **Implemented** (ADR-0006) — the first real writer is `locations` create/update/archive.
+- `id` (PK), `entity_type`, `entity_id` (text — holds the string form of whatever PK type the entity uses), `field_name`, `old_value`, `new_value`, `changed_by` (FK → users, nullable — null for system changes), `change_source` (`manual`/`import`/`system`/`verification`), `changed_at`
+- Indexed on `entity_type`, `entity_id`, and `changed_at` for chronological queries.
 
 **tasks**
 - `id` (PK), `title`, `description`, `organization_id` (FK → organizations, indexed), `assigned_user_id` (FK → users, nullable), `related_entity_type` (nullable), `related_entity_id` (nullable), `status` (`open`/`in_progress`/`done`/`cancelled`), `priority`, `due_date`, `created_by` (FK → users), `created_at`, `updated_at`

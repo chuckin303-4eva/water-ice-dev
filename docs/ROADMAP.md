@@ -18,7 +18,7 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 |---|---|---|---|
 | 1 | Database + project scaffold | Critical | Nothing else is buildable without it. |
 | 2 | User authentication | Critical | No real customer data gets exposed without it; also the first thing a demo/pilot needs. |
-| 3 | Location management (CRUD) | Critical | The core entity of the entire product. |
+| 3 | Location management (CRUD) | Critical | Done. The core entity of the entire product — built as prospecting (add by pin/address, property/utility/contact fields, geocoding, call notes + calendar follow-up). Power/water utility auto-lookup and property-ownership lookup explicitly deferred/manual (ADR-0006) — see docs/DATABASE.md. |
 | 4 | Interactive map | Critical | Primary interface — without it, the product doesn't demonstrate location intelligence at all. |
 | 5 | Basic scoring | High | The actual differentiator ("intelligence," not just a database), but a first cut can ship once CRUD/map exist — doesn't have to be perfect to demo. |
 | 6 | Filters | High | Map/table becomes unusable at real data volume without it. |
@@ -57,3 +57,4 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 - Industries beyond ice/water vending, until the module pattern is validated by building two real modules.
 - Public API for third-party integrations — internal use only until core stabilizes.
 - PostGIS, paid market-refresh providers, and background job infrastructure — all deliberately deferred per ADR-0002/ADR-0004; do not reintroduce without a new ADR and sign-off.
+- Power/water utility auto-lookup for prospects (ADR-0006) — free federal data sources confirmed to exist (EIA, OpenEI URDB, EPA), but the exact API integration wasn't built yet; a well-scoped next step, not abandoned. Property ownership and sewer-availability lookups stay manual indefinitely — no free source exists for either.

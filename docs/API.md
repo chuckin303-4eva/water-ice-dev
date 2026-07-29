@@ -29,3 +29,13 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/auth/login` | Exchange email+password for access+refresh tokens | No |
 | POST | `/auth/refresh` | Exchange a refresh token for a new access token | No (refresh token in body) |
 | GET | `/auth/me` | Return the authenticated user | Yes |
+| POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim) | Yes |
+| GET | `/locations` | List locations, optional `?status_filter=` | Yes |
+| GET | `/locations/{id}` | Get a location | Yes |
+| PUT | `/locations/{id}` | Update a location (partial; logs every changed field to `update_log`) | Yes |
+| DELETE | `/locations/{id}` | Archive a location (soft delete, status -> `archived`) | Yes |
+| POST | `/locations/{id}/call-notes` | Add a prospecting call note, optional `follow_up_at` | Yes |
+| GET | `/locations/{id}/call-notes` | List call notes for a location | Yes |
+| GET | `/locations/{id}/call-notes/{note_id}/calendar-link` | Google Calendar + Outlook "add event" links for a note's `follow_up_at`. 409 if the note has no follow-up date | Yes |
+
+Locations are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit any location.

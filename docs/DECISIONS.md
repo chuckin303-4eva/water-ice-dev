@@ -180,3 +180,33 @@ Still unaffected: the per-feature business-value/complexity/dependency/risk/impa
 - Architecture and implementation judgment calls made autonomously must still be recorded here when significant — silence is not an option just because approval isn't required anymore.
 - Destructive migrations, backward-incompatible changes, missing secrets/licenses, legal/compliance limits, and genuine strategic forks still hard-stop — autonomy has a firm edge, not a soft one.
 - If this turns out to move too fast (bad judgment calls slipping through before they're caught), the fix is tightening the pause list or re-adding a checkpoint via a new ADR — not silently reverting to asking before everything again.
+
+---
+
+## ADR-0006: Location prospecting — geocoding, prospect fields, and what stays manual
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 3 (Location management CRUD) had never actually been built — Phase 1 items 1-2 shipped, then work moved to governance/policy and a separate project for several sessions. User asked for it now, framed around a concrete workflow: add a prospective site by pin or address, capture property ownership/management/contacts, expected unit size, power/water/sewer connection details, and pricing estimates, with a "pull this for me where possible" preference, plus call notes and a calendar follow-up button.
+
+### Decision
+1. **Geocoding via Nominatim (OpenStreetMap)**, free, no API key — consistent with ADR-0004's "prioritize free sources" default. Used both directions: address → coordinates (creating by address) and coordinates → address (creating by pin), and in both cases also to resolve the state/county/city breakdown into this schema's normalized geography tables via get-or-create, the same pattern already used for other lookup tables in this schema.
+2. **17 new prospect fields added directly to `locations`** (property owner/management/contacts, expected unit size, power/water/sewer connection description + company, pricing estimate + notes) rather than a separate table — consistent with ADR-0003's precedent of a wide core `locations` table; these fields aren't industry-module-specific, they apply to prospecting any vending site.
+3. **`location_call_notes`**: a new table, not a field, since prospecting naturally produces a *sequence* of calls over time. `follow_up_at` on a note is what a calendar-link endpoint turns into a Google Calendar / Outlook "add event" deep link — no OAuth, no API calls, just a pre-filled URL, which works today with no frontend at all.
+4. **`update_log` built now**, not deferred further: ADR-0003 already required an append-only audit trail for exactly this ("never overwrite historical information"), but it had never actually been implemented because Location CRUD didn't exist yet. Building create/update/archive for the first time without wiring this in would have shipped a real, already-agreed requirement's gap, not a new scope decision.
+5. **Auto-lookup scope, decided after checking what's actually free (not guessed):**
+   - **Power company + commercial rate estimates**: confirmed two free federal data sources exist (EIA electric retail service territories; OpenEI's Utility Rate Database, which supports lookup by lat/lng). Not built this pass — using these properly means either a verified live spatial-query API call or self-hosting a polygon dataset, and the exact API shape wasn't confirmed in the time available. Deferred as a well-defined next step, not abandoned.
+   - **Water company**: confirmed a free federal dataset exists (EPA Community Water System Service Area Boundaries, released 2024, ~93-97% population coverage) — newer and less mature than the electric data. Same deferral as power, for the same reason.
+   - **Property ownership**: confirmed **no free nationwide source exists** — every option found (Regrid, ATTOM, LightBox) is a paid parcel-data API. Stays manual entry indefinitely, or becomes a future paid-API decision gated the same way LLM/KMS costs are gated on this and the other project — never silently added.
+   - **Sewer connection availability**: no equivalent public dataset found at all (unlike power/water). Stays manual indefinitely.
+
+### Alternatives considered
+- **A generic "enrichment" table/queue for prospect data** (mirroring LPC's `ai_suggestions`/validation-queue pattern): rejected for now — there's nothing to enrich with yet, since no auto-lookup provider is built. Worth revisiting once the power/water utility lookups are actually implemented, so they go through a review step rather than overwriting fields silently.
+- **Storing prospect fields in a separate 1:1 table instead of on `locations` directly**: rejected, consistent with ADR-0003's reasoning — an extra join for every read with no real benefit, since these fields aren't module-specific.
+
+### Consequences
+- `locations` grows to 35+ columns. Consistent with the ADR-0003 trade already accepted; still no plan to split it unless a genuine second consumer (a different industry module) needs a different shape.
+- Every location create/update/archive now writes to `update_log` — this must stay true for any future write path to `locations`, including whatever the deferred utility-lookup providers eventually do.
+- Users will see empty power/water/sewer/pricing fields on new prospects until they fill them in by hand or the deferred lookups are built — this is accurate, not a bug, and shouldn't be quietly "fixed" by fabricating a value.

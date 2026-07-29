@@ -69,3 +69,12 @@ def test_user(db_session: Session) -> User:
     db_session.commit()
     db_session.refresh(user)
     return user
+
+
+def auth_headers(client, user: User) -> dict[str, str]:
+    response = client.post(
+        "/auth/login",
+        json={"email": user.email, "password": "correct-horse-battery-staple"},
+    )
+    token = response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
