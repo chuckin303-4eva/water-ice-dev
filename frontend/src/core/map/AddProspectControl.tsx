@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMapEvents } from 'react-leaflet'
 import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
+import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
   onCreated: () => void
@@ -18,6 +19,7 @@ export function AddProspectControl({ onCreated }: Props) {
   const [addressInput, setAddressInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useMapEvents({
     click(event) {
@@ -48,7 +50,10 @@ export function AddProspectControl({ onCreated }: Props) {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-[1000] w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md">
+    <div
+      ref={panelRef}
+      className="absolute top-4 right-4 z-[1000] w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md"
+    >
       <button
         type="button"
         onClick={() => setIsAdding((prev) => !prev)}

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { competitorsApi } from '../api/competitors'
 import { ApiError } from '../api/client'
 import type { CompetitorDetail, CompetitorSummary } from '../api/types'
+import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
   competitor: CompetitorSummary
@@ -13,6 +14,7 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
   const [detail, setDetail] = useState<CompetitorDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const panelRef = useStopMapClickPropagation<HTMLDivElement>()
   const [form, setForm] = useState({
     serves_ice: false,
     serves_water: false,
@@ -73,7 +75,10 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
   }
 
   return (
-    <div className="absolute top-4 left-4 z-[1000] max-h-[calc(100%-2rem)] w-80 overflow-y-auto rounded-lg border border-orange-200 bg-white p-4 shadow-md">
+    <div
+      ref={panelRef}
+      className="absolute top-4 left-4 z-[1000] max-h-[calc(100%-2rem)] w-80 overflow-y-auto rounded-lg border border-orange-200 bg-white p-4 shadow-md"
+    >
       <div className="mb-2 flex items-start justify-between">
         <h2 className="text-sm font-semibold text-slate-900">{competitor.name}</h2>
         <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">

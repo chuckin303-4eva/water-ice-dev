@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
 import type { CallNote, LocationDetail, LocationSummary } from '../api/types'
+import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
   location: LocationSummary
@@ -14,6 +15,7 @@ export function LocationDetailPanel({ location, onClose }: Props) {
   const [noteText, setNoteText] = useState('')
   const [followUpAt, setFollowUpAt] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useEffect(() => {
     setDetail(null)
@@ -49,7 +51,10 @@ export function LocationDetailPanel({ location, onClose }: Props) {
   }
 
   return (
-    <div className="absolute top-4 left-4 z-[1000] max-h-[calc(100%-2rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-md">
+    <div
+      ref={panelRef}
+      className="absolute top-4 left-4 z-[1000] max-h-[calc(100%-2rem)] w-80 overflow-y-auto rounded-lg border border-slate-200 bg-white p-4 shadow-md"
+    >
       <div className="mb-2 flex items-start justify-between">
         <h2 className="text-sm font-semibold text-slate-900">{location.address}</h2>
         <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">

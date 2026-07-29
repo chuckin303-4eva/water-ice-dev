@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { useMapEvents } from 'react-leaflet'
 import { competitorsApi } from '../api/competitors'
 import { ApiError } from '../api/client'
+import { parseMapsListing } from './parseMapsListing'
+import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
   onCreated: () => void
@@ -16,9 +18,20 @@ export function AddCompetitorControl({ onCreated }: Props) {
   const [isAdding, setIsAdding] = useState(false)
   const [addressInput, setAddressInput] = useState('')
   const [nameInput, setNameInput] = useState('')
+  const [pasteInput, setPasteInput] = useState('')
   const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const panelRef = useStopMapClickPropagation<HTMLDivElement>()
+
+  function handleFillFromPaste() {
+    const { name, address } = parseMapsListing(pasteInput)
+    if (name) setNameInput(name)
+    if (address) setAddressInput(address)
+    if (!name && !address) {
+      setError('Could not find a name or address in that text -- fill in the fields below by hand')
+    }
+  }
 
   useMapEvents({
     click(event) {
@@ -61,7 +74,10 @@ export function AddCompetitorControl({ onCreated }: Props) {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-[1000] mt-20 w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md">
+    <div
+      ref={panelRef}
+      className="absolute top-4 right-4 z-[1000] mt-20 w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md"
+    >
       <button
         type="button"
         onClick={() => setIsAdding((prev) => !prev)}
@@ -74,6 +90,30 @@ export function AddCompetitorControl({ onCreated }: Props) {
 
       {isAdding && (
         <div className="mt-3 space-y-2">
+          <div className="rounded border border-dashed border-slate-300 p-2">
+            <label className="mb-1 block text-xs text-slate-500">
+              Paste text copied from a Google/Bing Maps listing
+            </label>
+            <textarea
+              value={pasteInput}
+              onChange={(e) => setPasteInput(e.target.value)}
+              placeholder={'Twice the Ice\n123 Main St, Denver, CO 80202'}
+              rows={2}
+              className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
+            />
+            <button
+              type="button"
+              onClick={handleFillFromPaste}
+              disabled={!pasteInput.trim()}
+              className="mt-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+            >
+              Fill in fields below
+            </button>
+            <p className="mt-1 text-[10px] text-slate-400">
+              Best-effort text match, not automated lookup -- check the fields before saving.
+            </p>
+          </div>
+
           <input
             type="text"
             value={nameInput}
