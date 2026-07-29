@@ -1,29 +1,26 @@
 import { useState } from 'react'
-import { hostBusinessesApi } from '../api/hostBusinesses'
+import { brandsApi } from '../api/brands'
 import { ApiError } from '../api/client'
-import type { HostBusiness } from '../api/types'
+import type { Brand } from '../api/types'
 
 interface Props {
-  onSelect: (hostBusiness: HostBusiness) => void
+  onSelect: (brand: Brand) => void
   onCancel: () => void
 }
 
-/** Search-or-create picker for linking a location to a host business
- * (Phase 2, "Host businesses"). `host_businesses` is a normalized table
- * shared across locations (ADR-0003), not free text -- so this searches
- * existing rows first and only falls back to a compact create form,
- * matching the "find or add" pattern this product already uses for
- * competitor brand suggestions.
+/** Search-or-create picker for linking a location to a brand (the parent
+ * franchise, e.g. "Twice the Ice"). `brands` is a normalized table
+ * (ADR-0002), same "find or add" shape as HostBusinessPicker -- kept to
+ * just a name at creation time, matching how simple `competitors.brand`
+ * (free text) already is; description/logo_url exist on the model for
+ * later, not needed for a quick link.
  */
-export function HostBusinessPicker({ onSelect, onCancel }: Props) {
+export function BrandPicker({ onSelect, onCancel }: Props) {
   const [query, setQuery] = useState('')
-  const [results, setResults] = useState<HostBusiness[]>([])
+  const [results, setResults] = useState<Brand[]>([])
   const [searched, setSearched] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [name, setName] = useState('')
-  const [category, setCategory] = useState('')
-  const [phone, setPhone] = useState('')
-  const [website, setWebsite] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -35,7 +32,7 @@ export function HostBusinessPicker({ onSelect, onCancel }: Props) {
       return
     }
     try {
-      const matches = await hostBusinessesApi.list(value.trim())
+      const matches = await brandsApi.list(value.trim())
       setResults(matches)
       setSearched(true)
     } catch {
@@ -49,15 +46,10 @@ export function HostBusinessPicker({ onSelect, onCancel }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const created = await hostBusinessesApi.create({
-        name: name.trim(),
-        category: category.trim() || undefined,
-        phone: phone.trim() || undefined,
-        website: website.trim() || undefined,
-      })
+      const created = await brandsApi.create({ name: name.trim() })
       onSelect(created)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create host business')
+      setError(err instanceof ApiError ? err.message : 'Could not create brand')
     } finally {
       setBusy(false)
     }
@@ -67,34 +59,31 @@ export function HostBusinessPicker({ onSelect, onCancel }: Props) {
     <div className="space-y-2 rounded border border-slate-100 bg-slate-50 p-2 text-xs">
       {!showCreateForm && (
         <>
-          <label className="block text-slate-500">Search host businesses</label>
+          <label className="block text-slate-500">Search brands</label>
           <input
             type="text"
             value={query}
             onChange={(e) => void handleSearch(e.target.value)}
-            placeholder="Name or category..."
+            placeholder="Twice the Ice, Kooler Ice..."
             className="w-full rounded border border-slate-300 px-2 py-1"
             autoFocus
           />
           {results.length > 0 && (
             <ul className="max-h-32 space-y-1 overflow-y-auto">
-              {results.map((h) => (
-                <li key={h.id}>
+              {results.map((b) => (
+                <li key={b.id}>
                   <button
                     type="button"
-                    onClick={() => onSelect(h)}
+                    onClick={() => onSelect(b)}
                     className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-left hover:bg-slate-100"
                   >
-                    <span className="font-medium">{h.name}</span>
-                    {h.category && <span className="text-slate-400"> · {h.category}</span>}
+                    {b.name}
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {searched && results.length === 0 && (
-            <p className="text-slate-400">No matches.</p>
-          )}
+          {searched && results.length === 0 && <p className="text-slate-400">No matches.</p>}
           <div className="flex gap-2">
             <button
               type="button"
@@ -115,14 +104,13 @@ export function HostBusinessPicker({ onSelect, onCancel }: Props) {
       )}
 
       {showCreateForm && (
-        // Plain div, not a <form> -- if this picker is ever rendered
-        // inside a parent <form>, a nested <form> silently fails to
-        // submit in this browser (confirmed for BrandPicker's identical
-        // pattern inside AddProspectControl: React warns "cannot
-        // contain a nested form" and the click produces no network
-        // activity at all).
+        // Plain div, not a <form> -- this picker can end up rendered
+        // inside a parent <form> (e.g. AddProspectControl), and a
+        // nested <form> silently fails to submit in this browser
+        // (confirmed: React warns "cannot contain a nested form" and
+        // the click produces no network activity at all).
         <div className="space-y-2">
-          <label className="block text-slate-500">Name</label>
+          <label className="block text-slate-500">Brand name</label>
           <input
             type="text"
             value={name}
@@ -133,38 +121,9 @@ export function HostBusinessPicker({ onSelect, onCancel }: Props) {
                 void handleCreate()
               }
             }}
-            placeholder="Shell Station #42"
+            placeholder="Twice the Ice"
             className="w-full rounded border border-slate-300 px-2 py-1"
             autoFocus
-          />
-          <label className="block text-slate-500">Category</label>
-          <input
-            type="text"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            placeholder="gas_station, laundromat, grocery..."
-            list="host-business-categories"
-            className="w-full rounded border border-slate-300 px-2 py-1"
-          />
-          <datalist id="host-business-categories">
-            <option value="gas_station" />
-            <option value="laundromat" />
-            <option value="grocery" />
-            <option value="convenience" />
-          </datalist>
-          <label className="block text-slate-500">Phone</label>
-          <input
-            type="text"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full rounded border border-slate-300 px-2 py-1"
-          />
-          <label className="block text-slate-500">Website</label>
-          <input
-            type="text"
-            value={website}
-            onChange={(e) => setWebsite(e.target.value)}
-            className="w-full rounded border border-slate-300 px-2 py-1"
           />
           <div className="flex gap-2">
             <button

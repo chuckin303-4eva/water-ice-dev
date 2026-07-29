@@ -57,6 +57,7 @@ ZIP code is **not** a normalized table — it's a plain indexed column on `locat
 
 **brands** — a vending brand/franchise a location operates under.
 - `id` (PK, UUID), `organization_id` (FK → organizations, nullable — null means a shared/reference brand visible platform-wide, set means a tenant's own private brand), `name`, `description`, `logo_url`, `created_at`, `updated_at`
+- **Implemented** (ADR-0016) — `POST/GET/PUT/DELETE /brands`, `GET ?search=` matches name. Linked to a location via a search-or-create picker (`BrandPicker`) on the Add Prospect card, same pattern as host businesses (ADR-0015). Every brand created through the picker is shared/platform-wide (`organization_id` left null) — nothing today creates a tenant-private brand. `DELETE` is rejected (409) while any location still references it, same as host businesses.
 
 ## Host businesses
 
@@ -118,7 +119,8 @@ Not organization-scoped: per ADR-0002, location/market data is shared platform-w
 **Prospecting fields (ADR-0006)** — all manually entered unless noted; see ADR-0006 for exactly what is/isn't automatable and why:
 - `property_owner_name`, `property_owner_phone`
 - `property_management_company`, `property_management_contact_name`, `property_management_contact_phone`
-- `primary_contact_name`, `primary_contact_phone`
+- `primary_contact_name`, `primary_contact_phone`, `primary_contact_email` — **email added** (ADR-0016), to match the contact-detail fields `competitors` already had
+- `website` — **new** (ADR-0016), the prospect's own site/business website, mirroring `competitors.website`
 - `expected_unit_size` — free text (e.g. "10x10 ft")
 - `power_connection_location`, `power_company`, `power_voltage` — power company auto-lookup designed (EIA + OpenEI URDB, both free) but not built yet
 - `water_connection_location`, `water_company` — water company auto-lookup designed (EPA service-area dataset, free) but not built yet

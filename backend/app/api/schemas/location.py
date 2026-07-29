@@ -35,6 +35,8 @@ class LocationCreateRequest(BaseModel):
     property_management_contact_phone: str | None = None
     primary_contact_name: str | None = None
     primary_contact_phone: str | None = None
+    primary_contact_email: str | None = None
+    website: str | None = None
     expected_unit_size: str | None = None
     power_connection_location: str | None = None
     power_company: str | None = None
@@ -85,6 +87,8 @@ class LocationUpdateRequest(BaseModel):
     property_management_contact_phone: str | None = None
     primary_contact_name: str | None = None
     primary_contact_phone: str | None = None
+    primary_contact_email: str | None = None
+    website: str | None = None
     expected_unit_size: str | None = None
     power_connection_location: str | None = None
     power_company: str | None = None
@@ -108,6 +112,7 @@ class LocationResponse(BaseModel):
     latitude: float
     longitude: float
     brand_id: uuid.UUID | None
+    brand_name: str | None
     serves_ice: bool
     serves_water: bool
     machine_type: str | None
@@ -130,6 +135,8 @@ class LocationResponse(BaseModel):
     property_management_contact_phone: str | None
     primary_contact_name: str | None
     primary_contact_phone: str | None
+    primary_contact_email: str | None
+    website: str | None
     expected_unit_size: str | None
     power_connection_location: str | None
     power_company: str | None

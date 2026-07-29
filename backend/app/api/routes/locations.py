@@ -71,6 +71,8 @@ def create_location(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except location_service.InvalidHostBusinessError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except location_service.InvalidBrandError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return location_service.assemble_response(db, location)
 
 
@@ -170,6 +172,8 @@ def update_location(
     try:
         location = location_service.update_location(db, location, body, updated_by=current_user.id)
     except location_service.InvalidHostBusinessError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except location_service.InvalidBrandError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return location_service.assemble_response(db, location)
 

@@ -91,6 +91,8 @@ class Location(Base):
     property_management_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     primary_contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     primary_contact_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    primary_contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     expected_unit_size: Mapped[str | None] = mapped_column(String(100), nullable=True)
     power_connection_location: Mapped[str | None] = mapped_column(String(500), nullable=True)
     power_company: Mapped[str | None] = mapped_column(String(255), nullable=True)

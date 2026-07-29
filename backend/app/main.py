@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.auth import router as auth_router
+from app.api.routes.brands import router as brands_router
 from app.api.routes.competitors import router as competitors_router
 from app.api.routes.host_businesses import router as host_businesses_router
 from app.api.routes.locations import router as locations_router
@@ -23,6 +24,7 @@ app.include_router(competitors_router)
 app.include_router(organizations_router)
 app.include_router(validation_queue_router)
 app.include_router(host_businesses_router)
+app.include_router(brands_router)
 
 
 @app.get("/health")

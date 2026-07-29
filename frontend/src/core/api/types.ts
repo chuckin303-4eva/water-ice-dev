@@ -12,6 +12,8 @@ export interface LocationDetail extends LocationSummary {
   county_name: string
   city_name: string
   zip_code: string
+  brand_id: string | null
+  brand_name: string | null
   serves_ice: boolean
   serves_water: boolean
   machine_type: string | null
@@ -30,6 +32,8 @@ export interface LocationDetail extends LocationSummary {
   property_management_contact_phone: string | null
   primary_contact_name: string | null
   primary_contact_phone: string | null
+  primary_contact_email: string | null
+  website: string | null
   expected_unit_size: string | null
   power_connection_location: string | null
   power_company: string | null
@@ -105,12 +109,18 @@ export interface CreateLocationInput {
   address?: string
   latitude?: number
   longitude?: number
+  brand_id?: string
+  website?: string
+  primary_contact_name?: string
+  primary_contact_phone?: string
+  primary_contact_email?: string
 }
 
 export interface UpdateLocationInput {
   visibility_rating?: number
   traffic_score?: number
   host_business_id?: string
+  brand_id?: string
 }
 
 export interface HostBusiness {
@@ -128,6 +138,21 @@ export interface CreateHostBusinessInput {
   category?: string
   phone?: string
   website?: string
+}
+
+export interface Brand {
+  id: string
+  name: string
+  description: string | null
+  logo_url: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateBrandInput {
+  name: string
+  description?: string
+  logo_url?: string
 }
 
 export interface CallNote {

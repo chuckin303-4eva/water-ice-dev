@@ -13,6 +13,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.location import LocationCreateRequest, LocationResponse, LocationUpdateRequest
+from app.core.models.brand import Brand
 from app.core.models.geography import City, County, State
 from app.core.models.host_business import HostBusiness
 from app.core.models.location import Location
@@ -43,6 +44,8 @@ _UPDATABLE_FIELDS = (
     "property_management_contact_phone",
     "primary_contact_name",
     "primary_contact_phone",
+    "primary_contact_email",
+    "website",
     "expected_unit_size",
     "power_connection_location",
     "power_company",
@@ -65,12 +68,21 @@ class InvalidHostBusinessError(Exception):
     pass
 
 
+class InvalidBrandError(Exception):
+    pass
+
+
 def _validate_host_business(db: Session, host_business_id: uuid.UUID | None) -> None:
     """A raw FK IntegrityError would otherwise surface as an unhelpful
     500 if the caller passes a host_business_id that doesn't exist.
     """
     if host_business_id is not None and db.get(HostBusiness, host_business_id) is None:
         raise InvalidHostBusinessError(f"Host business {host_business_id} does not exist")
+
+
+def _validate_brand(db: Session, brand_id: uuid.UUID | None) -> None:
+    if brand_id is not None and db.get(Brand, brand_id) is None:
+        raise InvalidBrandError(f"Brand {brand_id} does not exist")
 
 
 def _log_change(
@@ -97,6 +109,7 @@ def _log_change(
 
 def create_location(db: Session, data: LocationCreateRequest, created_by: int) -> Location:
     _validate_host_business(db, data.host_business_id)
+    _validate_brand(db, data.brand_id)
     if data.address and data.latitude is not None and data.longitude is not None:
         # Both given -- still geocode once (reverse, from the trusted
         # coordinates) purely to get the state/county/city breakdown in
@@ -135,6 +148,8 @@ def create_location(db: Session, data: LocationCreateRequest, created_by: int) -
         property_management_contact_phone=data.property_management_contact_phone,
         primary_contact_name=data.primary_contact_name,
         primary_contact_phone=data.primary_contact_phone,
+        primary_contact_email=data.primary_contact_email,
+        website=data.website,
         expected_unit_size=data.expected_unit_size,
         power_connection_location=data.power_connection_location,
         power_company=data.power_company,
@@ -195,6 +210,7 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
     county = db.get(County, location.county_id)
     city = db.get(City, location.city_id)
     host_business = db.get(HostBusiness, location.host_business_id) if location.host_business_id else None
+    brand = db.get(Brand, location.brand_id) if location.brand_id else None
     return LocationResponse(
         id=location.id,
         state_code=state.code,
@@ -205,6 +221,7 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
         latitude=float(location.latitude),
         longitude=float(location.longitude),
         brand_id=location.brand_id,
+        brand_name=brand.name if brand else None,
         serves_ice=location.serves_ice,
         serves_water=location.serves_water,
         machine_type=location.machine_type,
@@ -225,6 +242,8 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
         property_management_contact_phone=location.property_management_contact_phone,
         primary_contact_name=location.primary_contact_name,
         primary_contact_phone=location.primary_contact_phone,
+        primary_contact_email=location.primary_contact_email,
+        website=location.website,
         expected_unit_size=location.expected_unit_size,
         power_connection_location=location.power_connection_location,
         power_company=location.power_company,
@@ -247,6 +266,7 @@ def update_location(
     db: Session, location: Location, data: LocationUpdateRequest, updated_by: int
 ) -> Location:
     _validate_host_business(db, data.host_business_id)
+    _validate_brand(db, data.brand_id)
     for field in _UPDATABLE_FIELDS:
         new_value = getattr(data, field)
         if new_value is None:

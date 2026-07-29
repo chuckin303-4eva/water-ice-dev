@@ -56,7 +56,12 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | GET | `/host-businesses/{id}` | Get a host business | Yes |
 | PUT | `/host-businesses/{id}` | Update a host business (partial) | Yes |
 | DELETE | `/host-businesses/{id}` | Delete a host business. 409 if any location still references it | Yes |
-| POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim). Returns `202` + `ValidationQueueResponse` instead of `201` + `LocationResponse` if the org requires review and the caller isn't an admin (ADR-0014). `host_business_id`, if given, must reference an existing host business (422 otherwise, ADR-0015) | Yes |
+| POST | `/brands` | Create a brand (name required; description/logo_url optional). Always shared/platform-wide (ADR-0016) | Yes |
+| GET | `/brands` | List brands. `?search=` matches name -- powers the Add Prospect card's search-or-create picker | Yes |
+| GET | `/brands/{id}` | Get a brand | Yes |
+| PUT | `/brands/{id}` | Update a brand (partial) | Yes |
+| DELETE | `/brands/{id}` | Delete a brand. 409 if any location still references it | Yes |
+| POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim). Returns `202` + `ValidationQueueResponse` instead of `201` + `LocationResponse` if the org requires review and the caller isn't an admin (ADR-0014). `host_business_id`/`brand_id`, if given, must reference an existing row (422 otherwise, ADR-0015/ADR-0016). Also accepts `website`, `primary_contact_name`, `primary_contact_phone`, `primary_contact_email` (ADR-0016) | Yes |
 | GET | `/locations` | List locations. Filters (ADR-0010): `?statuses=` (repeatable, e.g. `statuses=prospect&statuses=active`), `?serves_ice=true`, `?serves_water=true` (opt-in narrowing -- OR across whichever are set, omitted means no filter), `?min_opportunity_score=` | Yes |
 | POST | `/locations/import` | Bulk-create locations from a CSV file (`multipart/form-data`, field name `file`). Columns: `address` (or `latitude`+`longitude`), `serves_ice`, `serves_water`, `notes`. Max 100 rows per file (422 if exceeded); partial success -- returns `{total_rows, created, queued, errors: [{row, message}]}`, one row's failure doesn't block the rest (ADR-0011). `queued` counts rows sent to the review queue instead of created directly (ADR-0014) | Yes |
 | GET | `/locations/export` | Download all locations matching the same filters as `GET /locations` as a CSV file, full field set (not just the import columns) (ADR-0013) | Yes |
