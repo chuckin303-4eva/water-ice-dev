@@ -2,7 +2,7 @@
 
 ## Purpose
 
-**Ice & Water Intelligence** — a location-intelligence SaaS for ice and water vending operators (competitors, market opportunities, expansion sites, host businesses). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design and [docs/ROADMAP.md](docs/ROADMAP.md) for current build phase. The product is early: Phase 1 (MVP) is in progress and the frontend doesn't exist yet.
+**Ice & Water Intelligence** — a location-intelligence SaaS for ice and water vending operators (competitors, market opportunities, expansion sites, host businesses). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for system design and [docs/ROADMAP.md](docs/ROADMAP.md) for current build phase. The product is early: Phase 1 (MVP) is in progress.
 
 ## Installation
 
@@ -28,7 +28,16 @@ If PowerShell blocks the activation script (`running scripts is disabled on this
 7. Enable local git hooks: `git config core.hooksPath .githooks`
 8. There's no signup endpoint yet — create your first login with `python scripts/seed_dev_user.py --org "Test Org" --email you@example.com --password yourpassword`, then `POST /auth/login` with those credentials.
 
-The frontend (React/Vite) doesn't exist yet — see [docs/ROADMAP.md](docs/ROADMAP.md) Phase 1.
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env   # defaults already point at http://localhost:8000 and raw OSM tiles (dev-only, see docs/DECISIONS.md ADR-0007)
+npm run dev            # http://localhost:5173
+```
+
+The backend must be running first (steps above) and its `cors_origins` setting must include the frontend's origin — it already defaults to `http://localhost:5173`. Log in with the same credentials created via `seed_dev_user.py`.
 
 ## Deployment
 

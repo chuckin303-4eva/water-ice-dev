@@ -210,3 +210,30 @@ Phase 1 item 3 (Location management CRUD) had never actually been built — Phas
 - `locations` grows to 35+ columns. Consistent with the ADR-0003 trade already accepted; still no plan to split it unless a genuine second consumer (a different industry module) needs a different shape.
 - Every location create/update/archive now writes to `update_log` — this must stay true for any future write path to `locations`, including whatever the deferred utility-lookup providers eventually do.
 - Users will see empty power/water/sewer/pricing fields on new prospects until they fill them in by hand or the deferred lookups are built — this is accurate, not a bug, and shouldn't be quietly "fixed" by fabricating a value.
+
+---
+
+## ADR-0007: Interactive map frontend — stack, tile provider, and CORS
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 4. This project had no frontend at all before this. User asked for the map with two open questions: which tile provider, and how minimal the add-prospect form should be. Answers given: pick a free tile provider now and swap before real users; keep the add-prospect form to pin/address only, everything else filled in later via the detail panel (which ADR-0006 already built the fields and endpoints for).
+
+### Decision
+1. **Stack: React 19 + TypeScript + Vite + Tailwind v4 + Leaflet (`react-leaflet`)**, no separate state-management library — the map's state (locations list, selected location) is small enough for plain `useState`/`useEffect`, and a second dependency isn't justified yet.
+2. **Marker clustering via `leaflet.markercluster`**, wired in imperatively through `useMap()` — required, not optional polish, given the schema's own 100,000+ location design target; an unclustered map would be unusable at that scale.
+3. **Tile provider: raw OpenStreetMap tiles for now, swap before production.** Confirmed via research (not assumed) that `tile.openstreetmap.org` explicitly prohibits commercial/production use in its own usage policy and can withdraw access without notice. Free-tier alternatives with no credit card required (MapTiler, Stadia Maps) exist for when this becomes a real product in front of users; paid tiers (~$25/mo) are a future cost tied to real commercial traffic, not a cost today. Tile URL/attribution are env vars (`VITE_TILE_URL_TEMPLATE`, `VITE_TILE_ATTRIBUTION`) specifically so this swap is a config change, not a code change.
+4. **Add-prospect form: pin or address only.** Everything else (property owner, contacts, utilities, pricing) is filled in afterward through the existing detail panel / update endpoint (ADR-0006) — no duplicate "create" and "edit" field sets to keep in sync.
+5. **Backend CORS added** (`CORSMiddleware`, origin list from a new `cors_origins` setting, defaulting to the Vite dev origin `http://localhost:5173`): the backend had no frontend to talk to before this, so it had never been configured. Origin list is env-driven so non-dev origins can be added later without a code change.
+6. **`localStorage` for the access token**, not an httpOnly cookie — simplest option for a not-yet-public-facing internal tool; flagged in code as an XSS trade-off to revisit before public exposure, not treated as a solved problem.
+
+### Alternatives considered
+- **A paid tile provider from day one**: rejected — no real users yet, so there's no traffic to justify a recurring cost; the free-tier swap is a config change away when it's actually needed.
+- **httpOnly cookie for auth token**: rejected for now — requires backend session/cookie infrastructure that doesn't exist yet and isn't justified before the product is customer-facing; recorded as a known gap, not ignored.
+
+### Consequences
+- The map will need a tile-provider swap (env var change) before any real/external user sees it — tracked here and in ROADMAP.md so it isn't forgotten.
+- `cors_origins` must be updated (via env, not code) whenever a new frontend origin needs to reach this API (a deployed frontend URL, a staging environment, etc.).
+- No automated frontend tests exist yet — verification for this feature was `tsc -b` (type-check), a full `vite build`, and manual end-to-end verification in a real browser against the real backend (login, map load, add-prospect by address, call note, calendar link) plus direct API verification via curl. Establishing a frontend test pattern (Vitest + React Testing Library, most likely) is unscheduled work, not an oversight.

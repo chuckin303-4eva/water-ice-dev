@@ -51,7 +51,7 @@ On the frontend, module-specific map layers, filters, and report panels register
 **Frontend**
 - React + TypeScript + Vite
 - Tailwind CSS
-- Leaflet (maps)
+- Leaflet + `leaflet.markercluster` (maps; clustering required at the 100k-location design target, not optional)
 - Charting and table libraries (to be selected when the first data views are built, based on actual data shapes — no chart/table library added speculatively)
 
 **Auth**

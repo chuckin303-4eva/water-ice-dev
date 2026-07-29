@@ -19,7 +19,7 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | 1 | Database + project scaffold | Critical | Nothing else is buildable without it. |
 | 2 | User authentication | Critical | No real customer data gets exposed without it; also the first thing a demo/pilot needs. |
 | 3 | Location management (CRUD) | Critical | Done. The core entity of the entire product — built as prospecting (add by pin/address, property/utility/contact fields, geocoding, call notes + calendar follow-up). Power/water utility auto-lookup and property-ownership lookup explicitly deferred/manual (ADR-0006) — see docs/DATABASE.md. |
-| 4 | Interactive map | Critical | Primary interface — without it, the product doesn't demonstrate location intelligence at all. |
+| 4 | Interactive map | Critical | Done. Primary interface — clustered Leaflet map (raw OSM tiles, dev-only per ADR-0007), status-colored markers, add-prospect by pin or address, detail panel with call notes + calendar follow-up. Tile provider swap before real users tracked in ADR-0007. |
 | 5 | Basic scoring | High | The actual differentiator ("intelligence," not just a database), but a first cut can ship once CRUD/map exist — doesn't have to be perfect to demo. |
 | 6 | Filters | High | Map/table becomes unusable at real data volume without it. |
 | 7 | Import CSV | High | Lets a prospective customer load their existing location list immediately instead of manual entry — directly shortens time-to-value, which is a real revenue lever (faster to a sellable demo). |
