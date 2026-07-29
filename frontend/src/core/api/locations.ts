@@ -4,6 +4,7 @@ import type {
   CreateLocationInput,
   LocationDetail,
   LocationFilters,
+  LocationImportSummary,
   LocationSummary,
   UpdateLocationInput,
 } from './types'
@@ -43,4 +44,9 @@ export const locationsApi = {
   // URLs -- it is not itself a redirect, so it can't be a plain <a href>.
   getCalendarLinks: (locationId: string, noteId: number) =>
     api.get<CalendarLinks>(`/locations/${locationId}/call-notes/${noteId}/calendar-link`),
+  importCsv: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.postForm<LocationImportSummary>('/locations/import', formData)
+  },
 }

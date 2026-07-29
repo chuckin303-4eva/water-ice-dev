@@ -327,3 +327,29 @@ Phase 1 item 7. The map fetches full `locations`/`competitors` lists with no pag
 ### Consequences
 - Every filter change triggers a new network request (no debounce added yet) — acceptable at current data volume; revisit if it becomes a real UX issue once pagination/larger datasets exist.
 - `min_opportunity_score` only has real meaning once Basic Scoring (ADR-0009) actually produces scores for rated sites — consistent with that feature's own stated limitation, not a new one.
+
+---
+
+## ADR-0011: Import CSV — minimal columns, server-side row cap, rate-limit-aware
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 8. ROADMAP.md's own stated value: "Lets a prospective customer load their existing location list immediately instead of manual entry." Each row still needs geocoding (address → coordinates, or coordinates → address/geography breakdown) through the same Nominatim service every other location create already uses — which has a documented ~1 request/second usage policy that a normal one-at-a-time human workflow never stressed, but a bulk import obviously does.
+
+### Decision
+1. **Minimal v1 column set**: `address` (or `latitude`+`longitude`), `serves_ice`, `serves_water`, `notes`. Same "minimal add, fill in the rest later via the detail panel" split as every other prospect-creation path (ADR-0007) — no attempt to support the full 30+ field prospecting schema through a CSV in this pass.
+2. **Rows are geocoded sequentially with a fixed ~1.1s delay between them**, reusing `location_service.create_location` per row (not a separate bulk code path) so every existing single-create behavior — geography resolution, score calculation — applies identically to imported rows. This means a large import is slow by design, not a bug: it's the cost of respecting Nominatim's real usage policy rather than hammering it.
+3. **A 100-row cap per import file**, enforced before any row is processed, so a request's duration is bounded (worst case ~2 minutes) rather than open-ended. Rejected outright (422) if exceeded, not silently truncated.
+4. **Partial success, not all-or-nothing**: a bad row (missing address and coordinates, unparseable data, a geocoding failure) is recorded as a per-row error and the import continues; the response reports `{total_rows, created, errors}` so the user can fix and re-import just the failed rows.
+5. **Row-level errors don't roll back already-created rows** — each row's `create_location` call commits independently (matching that function's existing behavior), so a failure on row 50 of 100 doesn't undo rows 1-49.
+
+### Alternatives considered
+- **A background job / async processing with a status-polling endpoint**: more correct at real scale, but real infrastructure (job queue) this project has deliberately deferred elsewhere (ADR-0004's Market Refresh Engine is Phase 3, in-process only). A synchronous request bounded by the row cap is adequate for a "doesn't have to be perfect to demo" MVP and needs no new infrastructure.
+- **Supporting the full prospecting field set via CSV columns**: rejected for v1 as unnecessary scope — matches the same reasoning ADR-0007 used to keep the map's manual add-prospect flow to pin/address only.
+- **Silently truncating a too-large file to the row cap**: rejected — silently dropping rows the user didn't know would be dropped is worse than a clear upfront rejection telling them the limit.
+
+### Consequences
+- Importing 100 rows takes on the order of ~2 minutes (rate-limit delay dominates) — a real, disclosed trade-off, not a performance bug to "fix" later without also revisiting the free-Nominatim-usage decision (ADR-0004/ADR-0006) that caused it.
+- New runtime dependency: `python-multipart` (required by FastAPI's `UploadFile`/`File` for parsing multipart/form-data uploads).

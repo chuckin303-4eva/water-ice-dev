@@ -173,3 +173,14 @@ class LocationCallNoteResponse(BaseModel):
 class CalendarLinkResponse(BaseModel):
     google: str
     outlook: str
+
+
+class LocationImportRowError(BaseModel):
+    row: int
+    message: str
+
+
+class LocationImportSummaryResponse(BaseModel):
+    total_rows: int
+    created: int
+    errors: list[LocationImportRowError]

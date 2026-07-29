@@ -9,6 +9,7 @@ import { ClusteredMarkers } from './ClusteredMarkers'
 import { CompetitorDetailPanel } from './CompetitorDetailPanel'
 import { CompetitorMarkers } from './CompetitorMarkers'
 import { DEFAULT_FILTERS, FilterPanel, toCompetitorFilters, toLocationFilters, type FiltersState } from './FilterPanel'
+import { ImportCsvControl } from './ImportCsvControl'
 import { LocationDetailPanel } from './LocationDetailPanel'
 
 // Continental-US-ish default view -- reasonable starting point until
@@ -67,6 +68,7 @@ export function MapView() {
         <AddProspectControl onCreated={refreshLocations} />
         <AddCompetitorControl onCreated={refreshCompetitors} />
         <FilterPanel filters={filters} onChange={setFilters} />
+        <ImportCsvControl onImported={refreshLocations} />
       </MapContainer>
 
       {selected?.kind === 'location' && (

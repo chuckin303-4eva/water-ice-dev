@@ -42,6 +42,17 @@ export interface LocationDetail extends LocationSummary {
   updated_at: string
 }
 
+export interface LocationImportRowError {
+  row: number
+  message: string
+}
+
+export interface LocationImportSummary {
+  total_rows: number
+  created: number
+  errors: LocationImportRowError[]
+}
+
 export interface LocationFilters {
   statuses?: string[]
   serves_ice?: boolean

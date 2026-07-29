@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -9,13 +9,21 @@ from app.api.schemas.location import (
     LocationCallNoteCreateRequest,
     LocationCallNoteResponse,
     LocationCreateRequest,
+    LocationImportRowError,
+    LocationImportSummaryResponse,
     LocationResponse,
     LocationSummary,
     LocationUpdateRequest,
 )
 from app.core.models.user import User
 from app.db.session import get_db
-from app.services import calendar_link_service, geocoding_service, location_service, scoring_service
+from app.services import (
+    calendar_link_service,
+    csv_import_service,
+    geocoding_service,
+    location_service,
+    scoring_service,
+)
 
 router = APIRouter(prefix="/locations", tags=["locations"])
 
@@ -57,6 +65,24 @@ def list_locations(
         min_opportunity_score=min_opportunity_score,
     )
     return [LocationSummary.model_validate(loc) for loc in locations]
+
+
+@router.post("/import", response_model=LocationImportSummaryResponse)
+async def import_locations(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LocationImportSummaryResponse:
+    content = await file.read()
+    try:
+        result = csv_import_service.import_locations_from_csv(db, content, created_by=current_user.id)
+    except csv_import_service.ImportTooLargeError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return LocationImportSummaryResponse(
+        total_rows=result.total_rows,
+        created=result.created,
+        errors=[LocationImportRowError(row=e.row, message=e.message) for e in result.errors],
+    )
 
 
 @router.get("/{location_id}", response_model=LocationResponse)

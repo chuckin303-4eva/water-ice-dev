@@ -29,7 +29,12 @@ export class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken()
   const headers = new Headers(options.headers)
-  headers.set('Content-Type', 'application/json')
+  // FormData bodies must NOT get an explicit Content-Type -- the browser
+  // sets multipart/form-data with the correct boundary itself, which we'd
+  // otherwise clobber.
+  if (!(options.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
@@ -60,4 +65,5 @@ export const api = {
   put: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  postForm: <T>(path: string, formData: FormData) => request<T>(path, { method: 'POST', body: formData }),
 }
