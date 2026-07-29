@@ -9,3 +9,19 @@ body,
   height: 100%;
   margin: 0;
 }
+
+/* This app has no dark theme built yet -- Tailwind's preflight sets
+ * color-scheme: light dark, so unstyled text/backgrounds (any element
+ * that doesn't set its own explicit Tailwind color classes) otherwise
+ * follow the OS/browser dark preference. Pin it to light until a real
+ * dark theme is designed, so plain pages don't render as low-contrast
+ * light-on-dark by accident.
+ */
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
