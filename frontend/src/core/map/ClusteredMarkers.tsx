@@ -4,17 +4,31 @@ import { useEffect, useRef } from 'react'
 import { useMap } from 'react-leaflet'
 import type { LocationSummary } from '../api/types'
 
-const STATUS_COLORS: Record<string, string> = {
-  prospect: '#f59e0b', // amber
-  active: '#16a34a', // green
-  archived: '#94a3b8', // slate
+const GREEN = '#16a34a'
+const YELLOW = '#f59e0b'
+const SLATE = '#94a3b8'
+
+// Basic scoring (Phase 1, item 5) isn't built yet, so opportunity_score is
+// null on every prospect today -- this threshold is a provisional
+// placeholder for "good enough to turn green" and has no real basis until
+// that feature defines the actual scoring scale. Revisit then.
+const GOOD_SCORE_THRESHOLD = 70
+
+function locationColor(location: LocationSummary): string {
+  if (location.status === 'archived') return SLATE
+  if (location.status === 'active') return GREEN
+  // prospect: yellow until scored, green once scored well
+  if (location.opportunity_score != null && location.opportunity_score >= GOOD_SCORE_THRESHOLD) {
+    return GREEN
+  }
+  return YELLOW
 }
 
-function markerIcon(status: string): L.DivIcon {
-  const color = STATUS_COLORS[status] ?? '#3b82f6'
+export function markerIcon(color: string, shape: 'circle' | 'square' = 'circle'): L.DivIcon {
+  const radius = shape === 'circle' ? '50%' : '3px'
   return L.divIcon({
     className: '',
-    html: `<span style="display:block;width:14px;height:14px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 2px rgba(0,0,0,0.5)"></span>`,
+    html: `<span style="display:block;width:14px;height:14px;border-radius:${radius};background:${color};border:2px solid white;box-shadow:0 0 2px rgba(0,0,0,0.5)"></span>`,
     iconSize: [14, 14],
   })
 }
@@ -51,7 +65,7 @@ export function ClusteredMarkers({ locations, onSelect }: Props) {
     clusterGroup.clearLayers()
     for (const location of locations) {
       const marker = L.marker([location.latitude, location.longitude], {
-        icon: markerIcon(location.status),
+        icon: markerIcon(locationColor(location)),
       })
       marker.bindPopup(
         `<strong>${location.address}</strong><br/>Status: ${location.status}`,

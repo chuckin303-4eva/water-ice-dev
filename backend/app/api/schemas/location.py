@@ -135,6 +135,7 @@ class LocationSummary(BaseModel):
     latitude: float
     longitude: float
     status: str
+    opportunity_score: float | None = None
 
     model_config = {"from_attributes": True}
 

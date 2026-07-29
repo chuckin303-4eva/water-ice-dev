@@ -62,10 +62,19 @@ ZIP code is **not** a normalized table — it's a plain indexed column on `locat
 
 ## Competitors
 
-Modeled as site-level records — a specific observed rival machine at a specific address — since a location's Competition Score is computed from the density of nearby competitor rows, and the map needs competitor pins with real coordinates, not just a company name.
+Modeled as site-level records — a specific observed rival machine at a specific address — since a location's Competition Score is computed from the density of nearby competitor rows, and the map needs competitor pins with real coordinates, not just a company name. **Implemented** (ADR-0008) — field set widened beyond the original design (`is_inside`, `machine_size`, `ice_price`/`water_price`/`price_notes`) for the map's click-to-view competitor panel. Unlike `locations`, writes here don't go through `update_log` — that guarantee covers an operator's own prospecting history, not observations of rival machines, which are expected to be corrected freely as better information comes in.
 
 **competitors**
-- `id` (PK, UUID), `name` (rival brand/operator), `state_id`/`county_id`/`city_id` (FK, indexed), `address`, `latitude`, `longitude` (indexed), `serves_ice` (bool), `serves_water` (bool), `machine_type`, `estimated_market_share`, `last_observed_date`, `source`, `notes`, `created_at`, `updated_at`
+- `id` (PK, UUID)
+- `state_id`/`county_id`/`city_id` (FK, indexed), `address`
+- `latitude`, `longitude` (indexed)
+- `name` (rival brand/operator, required)
+- `serves_ice` (bool), `serves_water` (bool), `machine_type`, `machine_size` — "size maybe"
+- `is_inside` (bool, nullable) — same meaning as `locations.is_inside`
+- `ice_price`, `water_price` (numeric, nullable), `price_notes` (free text — units/context vary by brand, e.g. "$1.75 per 16lb bag")
+- `estimated_market_share`, `last_observed_date`, `source` (free text — how this row was populated, e.g. "manual field observation", a URL, or a future provider name), `notes`
+- `created_at`, `updated_at`
+- No free, automated, nationwide source exists for specific ice/water vending machine addresses (confirmed by research, ADR-0008) — major brands' locators require their mobile apps or a zip-code-driven interactive map, not a scrapeable static list, and OSM has essentially no coverage for this niche. Every row here is either entered by hand (an operator's own market knowledge, most reliable for this niche) or, later, a paid-API/Market-Refresh write — same honesty pattern as the deferred utility lookups in ADR-0006.
 
 ## Locations — the central table
 

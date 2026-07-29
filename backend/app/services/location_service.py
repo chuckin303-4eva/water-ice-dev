@@ -17,7 +17,7 @@ from app.core.models.location import Location
 from app.core.models.location_call_note import LocationCallNote
 from app.core.models.update_log import UpdateLog
 from app.services import geocoding_service
-from app.services.geocoding_service import GeocodeResult
+from app.services.geography_service import resolve_geography
 
 _ENTITY_TYPE = "location"
 
@@ -57,49 +57,6 @@ class LocationNotFoundError(Exception):
     pass
 
 
-def _get_or_create_state(db: Session, code: str) -> State:
-    state = db.query(State).filter(State.code == code).first()
-    if state is None:
-        # name defaults to the code itself -- geocoding doesn't reliably
-        # give us the full state name separately from the code; good
-        # enough to be useful, correctable by hand like everything else.
-        state = State(code=code, name=code)
-        db.add(state)
-        db.flush()
-    return state
-
-
-def _get_or_create_county(db: Session, state: State, name: str) -> County:
-    county = db.query(County).filter(County.state_id == state.id, County.name == name).first()
-    if county is None:
-        county = County(state_id=state.id, name=name)
-        db.add(county)
-        db.flush()
-    return county
-
-
-def _get_or_create_city(db: Session, state: State, county: County, name: str) -> City:
-    city = (
-        db.query(City)
-        .filter(City.state_id == state.id, City.county_id == county.id, City.name == name)
-        .first()
-    )
-    if city is None:
-        city = City(state_id=state.id, county_id=county.id, name=name)
-        db.add(city)
-        db.flush()
-    return city
-
-
-def _resolve_geography(db: Session, geocode: GeocodeResult) -> tuple[State, County, City]:
-    if not geocode.state_code:
-        raise geocoding_service.GeocodingError("geocoding result had no resolvable state")
-    state = _get_or_create_state(db, geocode.state_code)
-    county = _get_or_create_county(db, state, geocode.county_name or "Unknown")
-    city = _get_or_create_city(db, state, county, geocode.city_name or "Unincorporated")
-    return state, county, city
-
-
 def _log_change(
     db: Session,
     location_id: uuid.UUID,
@@ -136,7 +93,7 @@ def create_location(db: Session, data: LocationCreateRequest, created_by: int) -
         geocode = geocoding_service.reverse_geocode(data.latitude, data.longitude)
         address, latitude, longitude = geocode.address, data.latitude, data.longitude
 
-    state, county, city = _resolve_geography(db, geocode)
+    state, county, city = resolve_geography(db, geocode)
 
     location = Location(
         state_id=state.id,

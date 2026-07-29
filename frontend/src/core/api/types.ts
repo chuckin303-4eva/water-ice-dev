@@ -4,6 +4,7 @@ export interface LocationSummary {
   latitude: number
   longitude: number
   status: string
+  opportunity_score: number | null
 }
 
 export interface LocationDetail extends LocationSummary {
@@ -49,4 +50,52 @@ export interface CallNote {
   call_date: string
   follow_up_at: string | null
   created_by: number
+}
+
+export interface CompetitorSummary {
+  id: string
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  serves_ice: boolean
+  serves_water: boolean
+}
+
+export interface CompetitorDetail extends CompetitorSummary {
+  state_code: string
+  county_name: string
+  city_name: string
+  machine_type: string | null
+  machine_size: string | null
+  is_inside: boolean | null
+  ice_price: number | null
+  water_price: number | null
+  price_notes: string | null
+  last_observed_date: string | null
+  source: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCompetitorInput {
+  address?: string
+  latitude?: number
+  longitude?: number
+  name: string
+}
+
+export interface UpdateCompetitorInput {
+  name?: string
+  serves_ice?: boolean
+  serves_water?: boolean
+  machine_type?: string
+  machine_size?: string
+  is_inside?: boolean
+  ice_price?: number
+  water_price?: number
+  price_notes?: string
+  source?: string
+  notes?: string
 }

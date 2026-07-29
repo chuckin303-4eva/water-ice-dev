@@ -20,11 +20,12 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | 2 | User authentication | Critical | No real customer data gets exposed without it; also the first thing a demo/pilot needs. |
 | 3 | Location management (CRUD) | Critical | Done. The core entity of the entire product — built as prospecting (add by pin/address, property/utility/contact fields, geocoding, call notes + calendar follow-up). Power/water utility auto-lookup and property-ownership lookup explicitly deferred/manual (ADR-0006) — see docs/DATABASE.md. |
 | 4 | Interactive map | Critical | Done. Primary interface — clustered Leaflet map (raw OSM tiles, dev-only per ADR-0007), status-colored markers, add-prospect by pin or address, detail panel with call notes + calendar follow-up. Tile provider swap before real users tracked in ADR-0007. |
-| 5 | Basic scoring | High | The actual differentiator ("intelligence," not just a database), but a first cut can ship once CRUD/map exist — doesn't have to be perfect to demo. |
-| 6 | Filters | High | Map/table becomes unusable at real data volume without it. |
-| 7 | Import CSV | High | Lets a prospective customer load their existing location list immediately instead of manual entry — directly shortens time-to-value, which is a real revenue lever (faster to a sellable demo). |
-| 8 | Admin dashboard | Medium | Org/user management so a paying customer's team can self-serve; not the core value prop but needed once there's more than one user per tenant. |
-| 9 | Export CSV | Medium | Portability/trust feature. Valuable, not blocking initial usability. |
+| 5 | Competitor tracking | High | Done (ADR-0008). Not originally a numbered item, pulled forward because it's directly requested and central to "location intelligence" — `competitors` CRUD, orange square map pins distinct from location pins, click-to-view panel (address/inside-outside/brand/size/ice-water/price). No free automated source exists for specific competitor addresses (researched, ADR-0008); populated by hand via the same map-click pattern as prospects, or a future gated paid-API option. |
+| 6 | Basic scoring | High | The actual differentiator ("intelligence," not just a database), but a first cut can ship once CRUD/map exist — doesn't have to be perfect to demo. Map already reads `locations.opportunity_score` for pin color (ADR-0008) — this feature just needs to start writing to it. |
+| 7 | Filters | High | Map/table becomes unusable at real data volume without it. |
+| 8 | Import CSV | High | Lets a prospective customer load their existing location list immediately instead of manual entry — directly shortens time-to-value, which is a real revenue lever (faster to a sellable demo). |
+| 9 | Admin dashboard | Medium | Org/user management so a paying customer's team can self-serve; not the core value prop but needed once there's more than one user per tenant. |
+| 10 | Export CSV | Medium | Portability/trust feature. Valuable, not blocking initial usability. |
 
 ## Phase 2 — Validation & Enrichment (not started, gated on Phase 1)
 
@@ -58,3 +59,4 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 - Public API for third-party integrations — internal use only until core stabilizes.
 - PostGIS, paid market-refresh providers, and background job infrastructure — all deliberately deferred per ADR-0002/ADR-0004; do not reintroduce without a new ADR and sign-off.
 - Power/water utility auto-lookup for prospects (ADR-0006) — free federal data sources confirmed to exist (EIA, OpenEI URDB, EPA), but the exact API integration wasn't built yet; a well-scoped next step, not abandoned. Property ownership and sewer-availability lookups stay manual indefinitely — no free source exists for either.
+- Automated competitor-data population (ADR-0008) — confirmed no free, scrapeable source exists for specific ice/water vending machine addresses; a paid Places API remains a future gated option, same treatment as the KMS/LLM-API cost gates on the related project. Manual entry via the map is the current path.

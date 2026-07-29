@@ -237,3 +237,30 @@ Phase 1 item 4. This project had no frontend at all before this. User asked for 
 - The map will need a tile-provider swap (env var change) before any real/external user sees it — tracked here and in ROADMAP.md so it isn't forgotten.
 - `cors_origins` must be updated (via env, not code) whenever a new frontend origin needs to reach this API (a deployed frontend URL, a staging environment, etc.).
 - No automated frontend tests exist yet — verification for this feature was `tsc -b` (type-check), a full `vite build`, and manual end-to-end verification in a real browser against the real backend (login, map load, add-prospect by address, call note, calendar link) plus direct API verification via curl. Establishing a frontend test pattern (Vitest + React Testing Library, most likely) is unscheduled work, not an oversight.
+
+---
+
+## ADR-0008: Competitor tracking — schema, map color-coding, and why Denver isn't pre-populated
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+User asked to focus the map on the Denver metro area, populate it with existing competitor locations, color-code pins by type (yellow = new prospect, green = good-scoring prospect / active, orange = competitor), and be able to click a competitor to see address, inside/outside, brand, size, ice-vs-water, and price. Competitors were designed in ADR-0003 (`competitors` table) but never actually built — Phase 1's roadmap also never explicitly scheduled them as their own line item, even though the schema anticipated them from day one.
+
+### Decision
+1. **Competitors implemented now, pulled forward into Phase 1** (not originally a numbered roadmap item) — flagged here per the PM operating rules rather than built silently, because it's directly requested and arguably as central to "location intelligence" as the map itself. ROADMAP.md updated accordingly.
+2. **Schema widened beyond ADR-0003's original design**: added `is_inside`, `machine_size`, `ice_price`, `water_price`, `price_notes` to `competitors` — needed for the click-to-view panel the user asked for; the original design only had `estimated_market_share`/`last_observed_date`/`source`/`notes` beyond the basics.
+3. **No `update_log` for competitors** (unlike `locations`): that guarantee is specifically about not overwriting an operator's own prospecting history; a competitor row is an observation of a rival, expected to be corrected/replaced freely, not an audited record. `DELETE` is a real hard delete here, not the soft-archive `locations` uses.
+4. **Map color logic**: `archived` -> slate, `active` -> green, `prospect` -> green once `opportunity_score` is populated and above a threshold, else yellow. Competitors get their own marker layer: orange, and a **square** icon (not just a different color) -- color alone isn't a reliable cue for the ~8% of users with red-green color vision deficiency, and orange/yellow/green are exactly the colors that can be confused. The `opportunity_score` threshold (70) is a placeholder with no real basis yet -- Basic Scoring (Phase 1 item 5) hasn't been built, so every current prospect is yellow regardless of the exact number; this is forward-compatible and will start mattering once that feature ships.
+5. **Denver metro is NOT pre-populated with competitor data, and no fabricated rows were created.** Researched (not assumed) whether a free, automated source exists: Twice the Ice, Kooler Ice, and Ice House America all gate their machine locators behind mobile apps or an interactive zip-code map -- no static, scrapeable address list exists on any of their sites (confirmed via direct fetch of their locator pages). Primo/Glacier Water's dispenser finder is the same pattern. A direct Overpass (OpenStreetMap) API query for the Denver bounding box was also attempted; the public instance was overloaded at the time, but even when available, ice/water vending kiosks are essentially never tagged in OSM (that tag set is used for snack/drink machines, not this niche) -- this is a real data-coverage gap, not a query bug. Inventing plausible-looking competitor names/addresses to "fill in" the map was rejected outright -- this is a real commercial tool and fake site data could actively mislead a placement decision, the same honesty bar already applied to utility/property lookups in ADR-0006.
+
+### Alternatives considered
+- **A paid Places API (e.g. Google Places) to auto-populate competitors**: would work, but is a new recurring cost -- gated the same way KMS/LLM-API costs are gated on this and the related project, requires explicit sign-off, not a default.
+- **Waiting for the Market Refresh Engine (ADR-0004) to eventually cover this**: rejected as the *only* path -- that's Phase 3, and the user asked for this now; manual entry is a legitimate interim path, not a workaround.
+- **Letting the user enter competitors only through a future admin/import flow**: rejected -- the same pin/address map-click pattern already built for prospects (ADR-0007) works just as well here and ships today.
+
+### Consequences
+- The practical path to real Denver data is the operator's own market knowledge, entered through the same "+ Add Competitor" map control used to verify this feature -- an operator in this specific niche market almost certainly knows their local rivals better than any generic API would.
+- A paid Places API remains available as a future opt-in if manual entry proves too slow at scale -- requires explicit sign-off before building, per the established cost-averse default.
+- `competitors` has no organization scoping, same as `locations` (ADR-0002) -- shared platform-wide intelligence, not per-tenant.
