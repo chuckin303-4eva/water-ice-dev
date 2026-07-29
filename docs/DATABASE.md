@@ -62,13 +62,15 @@ ZIP code is **not** a normalized table — it's a plain indexed column on `locat
 
 ## Competitors
 
-Modeled as site-level records — a specific observed rival machine at a specific address — since a location's Competition Score is computed from the density of nearby competitor rows, and the map needs competitor pins with real coordinates, not just a company name. **Implemented** (ADR-0008) — field set widened beyond the original design (`is_inside`, `machine_size`, `ice_price`/`water_price`/`price_notes`) for the map's click-to-view competitor panel. Unlike `locations`, writes here don't go through `update_log` — that guarantee covers an operator's own prospecting history, not observations of rival machines, which are expected to be corrected freely as better information comes in.
+Modeled as site-level records — a specific observed rival machine at a specific address — since a location's Competition Score is computed from the density of nearby competitor rows, and the map needs competitor pins with real coordinates, not just a company name. **Implemented** (ADR-0008) — field set widened twice beyond the original design: `is_inside`/`machine_size`/`ice_price`/`water_price`/`price_notes` for the map's click-to-view panel, then `brand`/`website`/`phone`/`contact_name`/`contact_email`/`follow_up_at` for a compact manual-entry form (ADR-0008 addendum). Unlike `locations`, writes here don't go through `update_log` — that guarantee covers an operator's own prospecting history, not observations of rival machines, which are expected to be corrected freely as better information comes in.
 
 **competitors**
 - `id` (PK, UUID)
 - `state_id`/`county_id`/`city_id` (FK, indexed), `address`
 - `latitude`, `longitude` (indexed)
-- `name` (rival brand/operator, required)
+- `name` (the specific site's own name/label, required), `brand` (the parent franchise, e.g. "Twice the Ice" -- free text with UI autocomplete suggestions, not a link to the shared `brands` table)
+- `website`, `phone`, `contact_name`, `contact_email`
+- `follow_up_at` (nullable datetime) -- powers `GET /competitors/{id}/calendar-link` (Google/Outlook deep links, same `calendar_link_service` used by locations' call notes)
 - `serves_ice` (bool), `serves_water` (bool), `machine_type`, `machine_size` — "size maybe"
 - `is_inside` (bool, nullable) — same meaning as `locations.is_inside`
 - `ice_price`, `water_price` (numeric, nullable), `price_notes` (free text — units/context vary by brand, e.g. "$1.75 per 16lb bag")

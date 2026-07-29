@@ -125,3 +125,59 @@ def test_delete_competitor(client, test_user: User) -> None:
 
     get = client.get(f"/competitors/{competitor_id}", headers=headers)
     assert get.status_code == 404
+
+
+def test_create_competitor_with_contact_fields(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    response = client.post(
+        "/competitors",
+        json={
+            "address": "456 Rival Ave, Denver, CO",
+            "name": "Twice the Ice - King Soopers",
+            "brand": "Twice the Ice",
+            "website": "https://www.twicetheice.com",
+            "phone": "555-0101",
+            "contact_name": "Store Manager",
+            "contact_email": "manager@example.com",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["brand"] == "Twice the Ice"
+    assert body["website"] == "https://www.twicetheice.com"
+    assert body["phone"] == "555-0101"
+    assert body["contact_name"] == "Store Manager"
+    assert body["contact_email"] == "manager@example.com"
+
+
+def test_calendar_link_for_competitor_with_follow_up(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    create = client.post(
+        "/competitors",
+        json={
+            "address": "456 Rival Ave, Denver, CO",
+            "name": "Twice the Ice",
+            "follow_up_at": "2026-08-05T15:00:00Z",
+        },
+        headers=headers,
+    )
+    competitor_id = create.json()["id"]
+
+    response = client.get(f"/competitors/{competitor_id}/calendar-link", headers=headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["google"].startswith("https://calendar.google.com/calendar/render?")
+    assert "20260805T150000Z" in body["google"]
+    assert body["outlook"].startswith("https://outlook.live.com/calendar/0/deeplink/compose?")
+
+
+def test_calendar_link_without_follow_up_is_conflict(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    create = client.post(
+        "/competitors", json={"address": "456 Rival Ave", "name": "Twice the Ice"}, headers=headers
+    )
+    competitor_id = create.json()["id"]
+
+    response = client.get(f"/competitors/{competitor_id}/calendar-link", headers=headers)
+    assert response.status_code == 409

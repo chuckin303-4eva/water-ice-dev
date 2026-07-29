@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { competitorsApi } from '../api/competitors'
 import { ApiError } from '../api/client'
-import type { CompetitorDetail, CompetitorSummary } from '../api/types'
+import type { CompetitorCalendarLinks, CompetitorDetail, CompetitorSummary } from '../api/types'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -14,8 +14,15 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
   const [detail, setDetail] = useState<CompetitorDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
+  const [calendarLinks, setCalendarLinks] = useState<CompetitorCalendarLinks | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
   const [form, setForm] = useState({
+    brand: '',
+    website: '',
+    phone: '',
+    contact_name: '',
+    contact_email: '',
+    follow_up_at: '',
     serves_ice: false,
     serves_water: false,
     machine_size: '',
@@ -27,11 +34,18 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
 
   useEffect(() => {
     setDetail(null)
+    setCalendarLinks(null)
     competitorsApi
       .get(competitor.id)
       .then((d) => {
         setDetail(d)
         setForm({
+          brand: d.brand ?? '',
+          website: d.website ?? '',
+          phone: d.phone ?? '',
+          contact_name: d.contact_name ?? '',
+          contact_email: d.contact_email ?? '',
+          follow_up_at: d.follow_up_at ? d.follow_up_at.slice(0, 16) : '',
           serves_ice: d.serves_ice,
           serves_water: d.serves_water,
           machine_size: d.machine_size ?? '',
@@ -48,6 +62,12 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
     event.preventDefault()
     try {
       const updated = await competitorsApi.update(competitor.id, {
+        brand: form.brand || undefined,
+        website: form.website || undefined,
+        phone: form.phone || undefined,
+        contact_name: form.contact_name || undefined,
+        contact_email: form.contact_email || undefined,
+        follow_up_at: form.follow_up_at ? new Date(form.follow_up_at).toISOString() : undefined,
         serves_ice: form.serves_ice,
         serves_water: form.serves_water,
         machine_size: form.machine_size || undefined,
@@ -61,6 +81,15 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
       onChanged()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save changes')
+    }
+  }
+
+  async function handleGetCalendarLink() {
+    try {
+      const links = await competitorsApi.getCalendarLinks(competitor.id)
+      setCalendarLinks(links)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not build calendar link')
     }
   }
 
@@ -89,6 +118,36 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
 
       {detail && !editing && (
         <dl className="mb-3 space-y-1 text-xs text-slate-600">
+          {detail.brand && (
+            <div>
+              <dt className="inline font-medium">Brand: </dt>
+              <dd className="inline">{detail.brand}</dd>
+            </div>
+          )}
+          {detail.website && (
+            <div>
+              <dt className="inline font-medium">Website: </dt>
+              <dd className="inline">
+                <a href={detail.website} target="_blank" rel="noopener" className="text-blue-600 underline">
+                  {detail.website}
+                </a>
+              </dd>
+            </div>
+          )}
+          {detail.phone && (
+            <div>
+              <dt className="inline font-medium">Phone: </dt>
+              <dd className="inline">{detail.phone}</dd>
+            </div>
+          )}
+          {(detail.contact_name || detail.contact_email) && (
+            <div>
+              <dt className="inline font-medium">Contact: </dt>
+              <dd className="inline">
+                {[detail.contact_name, detail.contact_email].filter(Boolean).join(' -- ')}
+              </dd>
+            </div>
+          )}
           <div>
             <dt className="inline font-medium">Inside/outside: </dt>
             <dd className="inline">
@@ -139,8 +198,89 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
         </dl>
       )}
 
+      {detail && !editing && detail.follow_up_at && (
+        <div className="mb-3 text-xs">
+          {calendarLinks ? (
+            <div className="flex gap-1">
+              <a
+                href={calendarLinks.google}
+                target="_blank"
+                rel="noopener"
+                className="flex-1 rounded bg-slate-700 px-2 py-1 text-center text-white"
+              >
+                Google
+              </a>
+              <a
+                href={calendarLinks.outlook}
+                target="_blank"
+                rel="noopener"
+                className="flex-1 rounded bg-slate-700 px-2 py-1 text-center text-white"
+              >
+                Outlook
+              </a>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleGetCalendarLink}
+              className="w-full rounded border border-slate-300 px-2 py-1 text-blue-600"
+            >
+              Follow up {new Date(detail.follow_up_at).toLocaleString()} → add to calendar
+            </button>
+          )}
+        </div>
+      )}
+
       {detail && editing && (
         <form onSubmit={handleSave} className="mb-3 space-y-2 text-xs">
+          <input
+            type="text"
+            list="brand-suggestions-edit"
+            value={form.brand}
+            onChange={(e) => setForm({ ...form, brand: e.target.value })}
+            placeholder="Brand"
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <datalist id="brand-suggestions-edit">
+            <option value="Twice the Ice" />
+            <option value="Kooler Ice" />
+            <option value="Watermill Express" />
+          </datalist>
+          <input
+            type="url"
+            value={form.website}
+            onChange={(e) => setForm({ ...form, website: e.target.value })}
+            placeholder="Website"
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="Phone"
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <input
+            type="text"
+            value={form.contact_name}
+            onChange={(e) => setForm({ ...form, contact_name: e.target.value })}
+            placeholder="Contact name"
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <input
+            type="email"
+            value={form.contact_email}
+            onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+            placeholder="Contact email"
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
+          <label className="block text-slate-500">Follow up on</label>
+          <input
+            type="datetime-local"
+            value={form.follow_up_at}
+            onChange={(e) => setForm({ ...form, follow_up_at: e.target.value })}
+            className="w-full rounded border border-slate-300 px-2 py-1"
+          />
           <label className="flex items-center gap-2">
             <input
               type="checkbox"

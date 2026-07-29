@@ -66,6 +66,12 @@ export interface CompetitorDetail extends CompetitorSummary {
   state_code: string
   county_name: string
   city_name: string
+  brand: string | null
+  website: string | null
+  phone: string | null
+  contact_name: string | null
+  contact_email: string | null
+  follow_up_at: string | null
   machine_type: string | null
   machine_size: string | null
   is_inside: boolean | null
@@ -84,10 +90,22 @@ export interface CreateCompetitorInput {
   latitude?: number
   longitude?: number
   name: string
+  brand?: string
+  website?: string
+  phone?: string
+  contact_name?: string
+  contact_email?: string
+  follow_up_at?: string
 }
 
 export interface UpdateCompetitorInput {
   name?: string
+  brand?: string
+  website?: string
+  phone?: string
+  contact_name?: string
+  contact_email?: string
+  follow_up_at?: string
   serves_ice?: boolean
   serves_water?: boolean
   machine_type?: string
@@ -98,4 +116,9 @@ export interface UpdateCompetitorInput {
   price_notes?: string
   source?: string
   notes?: string
+}
+
+export interface CompetitorCalendarLinks {
+  google: string
+  outlook: string
 }

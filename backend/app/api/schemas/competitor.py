@@ -6,8 +6,9 @@ from pydantic import BaseModel, model_validator
 
 class CompetitorCreateRequest(BaseModel):
     """Either address, or (latitude and longitude), must be provided --
-    same pattern as LocationCreateRequest. `name` (the rival brand/
-    operator) is required -- an unnamed competitor pin isn't useful.
+    same pattern as LocationCreateRequest. `name` (the specific site's
+    own name/label) is required -- an unnamed competitor pin isn't
+    useful.
     """
 
     address: str | None = None
@@ -15,6 +16,12 @@ class CompetitorCreateRequest(BaseModel):
     longitude: float | None = None
 
     name: str
+    brand: str | None = None
+    website: str | None = None
+    phone: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    follow_up_at: datetime | None = None
     serves_ice: bool = False
     serves_water: bool = False
     machine_type: str | None = None
@@ -42,6 +49,12 @@ class CompetitorUpdateRequest(BaseModel):
     longitude: float | None = None
 
     name: str | None = None
+    brand: str | None = None
+    website: str | None = None
+    phone: str | None = None
+    contact_name: str | None = None
+    contact_email: str | None = None
+    follow_up_at: datetime | None = None
     serves_ice: bool | None = None
     serves_water: bool | None = None
     machine_type: str | None = None
@@ -65,6 +78,12 @@ class CompetitorResponse(BaseModel):
     longitude: float
 
     name: str
+    brand: str | None
+    website: str | None
+    phone: str | None
+    contact_name: str | None
+    contact_email: str | None
+    follow_up_at: datetime | None
     serves_ice: bool
     serves_water: bool
     machine_type: str | None
@@ -91,3 +110,8 @@ class CompetitorSummary(BaseModel):
     serves_water: bool
 
     model_config = {"from_attributes": True}
+
+
+class CalendarLinkResponse(BaseModel):
+    google: str
+    outlook: str

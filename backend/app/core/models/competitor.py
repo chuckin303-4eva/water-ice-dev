@@ -14,13 +14,19 @@ class Competitor(Base):
 
     Field set widened beyond ADR-0003's original design (ADR-0008):
     `is_inside`, `machine_size`, `ice_price`/`water_price`/`price_notes`
-    added for the map's click-to-view competitor panel. There is no
-    automated way to populate this table -- confirmed no free, scrapeable
-    source exists for specific ice/water vending machine addresses (see
-    ADR-0008) -- so every row here is either entered by hand from an
-    operator's own market knowledge, or (later) a paid-API/Market-Refresh
-    write, same honesty pattern as the deferred utility lookups in
-    ADR-0006.
+    added for the map's click-to-view competitor panel; `brand`,
+    `website`, `phone`, `contact_name`, `contact_email`, `follow_up_at`
+    added for a compact manual-entry form (ADR-0008 addendum) -- `name`
+    is the specific site's own name/label, `brand` is the parent
+    franchise (e.g. "Twice the Ice", "Kooler Ice", "Watermill Express"),
+    kept as free text rather than a link to the shared `brands` table
+    since this needs no more structure than an autocomplete suggestion
+    list. There is no automated way to populate this table -- confirmed
+    no free, scrapeable source exists for specific ice/water vending
+    machine addresses (see ADR-0008) -- so every row here is either
+    entered by hand from an operator's own market knowledge, or (later)
+    a paid-API/Market-Refresh write, same honesty pattern as the
+    deferred utility lookups in ADR-0006.
     """
 
     __tablename__ = "competitors"
@@ -35,7 +41,14 @@ class Competitor(Base):
     latitude: Mapped[float] = mapped_column(Numeric(9, 6), index=True, nullable=False)
     longitude: Mapped[float] = mapped_column(Numeric(9, 6), index=True, nullable=False)
 
-    name: Mapped[str] = mapped_column(String(255), nullable=False)  # rival brand/operator
+    name: Mapped[str] = mapped_column(String(255), nullable=False)  # specific site/location name
+    brand: Mapped[str | None] = mapped_column(String(100), nullable=True)  # parent franchise
+    website: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     serves_ice: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     serves_water: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     machine_type: Mapped[str | None] = mapped_column(String(100), nullable=True)

@@ -1,5 +1,6 @@
 import { api } from './client'
 import type {
+  CompetitorCalendarLinks,
   CompetitorDetail,
   CompetitorSummary,
   CreateCompetitorInput,
@@ -13,4 +14,5 @@ export const competitorsApi = {
   update: (id: string, input: UpdateCompetitorInput) =>
     api.put<CompetitorDetail>(`/competitors/${id}`, input),
   remove: (id: string) => api.delete<void>(`/competitors/${id}`),
+  getCalendarLinks: (id: string) => api.get<CompetitorCalendarLinks>(`/competitors/${id}/calendar-link`),
 }

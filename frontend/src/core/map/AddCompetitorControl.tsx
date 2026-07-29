@@ -2,58 +2,88 @@ import { useState, type FormEvent } from 'react'
 import { useMapEvents } from 'react-leaflet'
 import { competitorsApi } from '../api/competitors'
 import { ApiError } from '../api/client'
-import { parseMapsListing } from './parseMapsListing'
+import type { CompetitorCalendarLinks } from '../api/types'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
   onCreated: () => void
 }
 
-/** Mirrors AddProspectControl's pin/address minimal-entry pattern (ADR-0007)
- * plus a required name (brand/operator), since an unnamed competitor pin
- * isn't useful. Everything else (ice/water, price, size) is filled in
- * afterward via the detail panel -- same split as prospects.
+const BRAND_SUGGESTIONS = ['Twice the Ice', 'Kooler Ice', 'Watermill Express']
+
+const EMPTY_FORM = {
+  name: '',
+  brand: '',
+  address: '',
+  website: '',
+  phone: '',
+  contactName: '',
+  email: '',
+  followUpAt: '',
+}
+
+/** Compact manual-entry form -- plain fields, no auto-matching, per the
+ * user's explicit preference over the earlier paste-and-parse UI. Click
+ * the map or type an address; everything else (ice/water, price, size)
+ * still gets filled in later via the detail panel, same minimal-add
+ * split as prospects (ADR-0007).
  */
 export function AddCompetitorControl({ onCreated }: Props) {
   const [isAdding, setIsAdding] = useState(false)
-  const [addressInput, setAddressInput] = useState('')
-  const [nameInput, setNameInput] = useState('')
-  const [pasteInput, setPasteInput] = useState('')
+  const [form, setForm] = useState(EMPTY_FORM)
   const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [calendarLinks, setCalendarLinks] = useState<CompetitorCalendarLinks | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
-
-  function handleFillFromPaste() {
-    const { name, address } = parseMapsListing(pasteInput)
-    if (name) setNameInput(name)
-    if (address) setAddressInput(address)
-    if (!name && !address) {
-      setError('Could not find a name or address in that text -- fill in the fields below by hand')
-    }
-  }
 
   useMapEvents({
     click(event) {
       if (!isAdding || submitting) return
       setPendingLatLng({ lat: event.latlng.lat, lng: event.latlng.lng })
+      setForm((prev) => ({ ...prev, address: '' }))
     },
   })
 
-  async function createCompetitor(input: { address?: string; latitude?: number; longitude?: number }) {
-    if (!nameInput.trim()) {
-      setError('Name (brand/operator) is required')
+  function updateField<K extends keyof typeof EMPTY_FORM>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }))
+  }
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    if (!form.name.trim()) {
+      setError('Location name is required')
+      return
+    }
+    if (!pendingLatLng && !form.address.trim()) {
+      setError('Click the map or enter an address')
       return
     }
     setError(null)
     setSubmitting(true)
+    setCalendarLinks(null)
     try {
-      await competitorsApi.create({ ...input, name: nameInput.trim() })
-      setIsAdding(false)
-      setAddressInput('')
-      setNameInput('')
-      setPendingLatLng(null)
+      const created = await competitorsApi.create({
+        ...(pendingLatLng
+          ? { latitude: pendingLatLng.lat, longitude: pendingLatLng.lng }
+          : { address: form.address.trim() }),
+        name: form.name.trim(),
+        brand: form.brand.trim() || undefined,
+        website: form.website.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        contact_name: form.contactName.trim() || undefined,
+        contact_email: form.email.trim() || undefined,
+        follow_up_at: form.followUpAt ? new Date(form.followUpAt).toISOString() : undefined,
+      })
       onCreated()
+      if (form.followUpAt) {
+        const links = await competitorsApi.getCalendarLinks(created.id)
+        setCalendarLinks(links)
+      } else {
+        setForm(EMPTY_FORM)
+        setPendingLatLng(null)
+        setIsAdding(false)
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create competitor')
     } finally {
@@ -61,106 +91,147 @@ export function AddCompetitorControl({ onCreated }: Props) {
     }
   }
 
-  function handleAddressSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!addressInput.trim()) return
-    void createCompetitor({ address: addressInput.trim() })
-  }
-
-  function handlePinSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!pendingLatLng) return
-    void createCompetitor({ latitude: pendingLatLng.lat, longitude: pendingLatLng.lng })
+  function handleDone() {
+    setForm(EMPTY_FORM)
+    setPendingLatLng(null)
+    setCalendarLinks(null)
+    setIsAdding(false)
   }
 
   return (
     <div
       ref={panelRef}
-      className="absolute top-4 right-4 z-[1000] mt-20 w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md"
+      className="absolute top-4 right-4 z-[1000] mt-20 w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-md"
     >
       <button
         type="button"
         onClick={() => setIsAdding((prev) => !prev)}
-        className={`w-full rounded px-3 py-2 text-sm font-medium ${
+        className={`w-full rounded px-2 py-1.5 text-xs font-medium ${
           isAdding ? 'bg-orange-600 text-white' : 'bg-slate-900 text-white'
         }`}
       >
-        {isAdding ? 'Click the map to place a competitor…' : '+ Add Competitor'}
+        {isAdding ? (pendingLatLng ? 'Pin placed -- fill in below' : 'Click map or fill in below') : '+ Add Competitor'}
       </button>
 
-      {isAdding && (
-        <div className="mt-3 space-y-2">
-          <div className="rounded border border-dashed border-slate-300 p-2">
-            <label className="mb-1 block text-xs text-slate-500">
-              Paste text copied from a Google/Bing Maps listing
-            </label>
-            <textarea
-              value={pasteInput}
-              onChange={(e) => setPasteInput(e.target.value)}
-              placeholder={'Twice the Ice\n123 Main St, Denver, CO 80202'}
-              rows={2}
-              className="w-full rounded border border-slate-300 px-2 py-1 text-xs"
-            />
-            <button
-              type="button"
-              onClick={handleFillFromPaste}
-              disabled={!pasteInput.trim()}
-              className="mt-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-700 disabled:opacity-50"
+      {isAdding && calendarLinks && (
+        <div className="mt-2 space-y-1 text-xs">
+          <p className="text-slate-600">Competitor saved. Add the follow-up to your calendar:</p>
+          <div className="flex gap-1">
+            <a
+              href={calendarLinks.google}
+              target="_blank"
+              rel="noopener"
+              className="flex-1 rounded bg-slate-700 px-2 py-1 text-center text-white"
             >
-              Fill in fields below
-            </button>
-            <p className="mt-1 text-[10px] text-slate-400">
-              Best-effort text match, not automated lookup -- check the fields before saving.
-            </p>
+              Google
+            </a>
+            <a
+              href={calendarLinks.outlook}
+              target="_blank"
+              rel="noopener"
+              className="flex-1 rounded bg-slate-700 px-2 py-1 text-center text-white"
+            >
+              Outlook
+            </a>
           </div>
-
-          <input
-            type="text"
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            placeholder="Brand/operator name"
-            className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-          />
-
-          {pendingLatLng && (
-            <form onSubmit={handlePinSubmit} className="flex gap-2">
-              <p className="flex-1 self-center text-xs text-slate-500">
-                Pin placed at {pendingLatLng.lat.toFixed(4)}, {pendingLatLng.lng.toFixed(4)}
-              </p>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="shrink-0 rounded bg-orange-600 px-3 py-1 text-sm text-white disabled:opacity-50"
-              >
-                Save
-              </button>
-            </form>
-          )}
-
-          <form onSubmit={handleAddressSubmit}>
-            <label className="mb-1 block text-xs text-slate-500">…or enter an address instead</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={addressInput}
-                onChange={(e) => setAddressInput(e.target.value)}
-                placeholder="123 Main St, Denver, CO"
-                className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-              />
-              <button
-                type="submit"
-                disabled={submitting}
-                className="shrink-0 rounded bg-slate-700 px-3 py-1 text-sm text-white disabled:opacity-50"
-              >
-                Add
-              </button>
-            </div>
-          </form>
+          <button type="button" onClick={handleDone} className="w-full rounded border border-slate-300 px-2 py-1">
+            Done
+          </button>
         </div>
       )}
 
-      {submitting && <p className="mt-2 text-xs text-slate-500">Creating…</p>}
-      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {isAdding && !calendarLinks && (
+        <form onSubmit={handleSubmit} className="mt-2 space-y-1 text-xs">
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => updateField('name', e.target.value)}
+            placeholder="Location name *"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+          <input
+            type="text"
+            list="brand-suggestions"
+            value={form.brand}
+            onChange={(e) => updateField('brand', e.target.value)}
+            placeholder="Brand"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+          <datalist id="brand-suggestions">
+            {BRAND_SUGGESTIONS.map((b) => (
+              <option key={b} value={b} />
+            ))}
+          </datalist>
+
+          {pendingLatLng ? (
+            <p className="rounded bg-slate-50 px-1.5 py-1 text-slate-500">
+              Pin at {pendingLatLng.lat.toFixed(4)}, {pendingLatLng.lng.toFixed(4)}{' '}
+              <button
+                type="button"
+                onClick={() => setPendingLatLng(null)}
+                className="text-orange-600 underline"
+              >
+                clear
+              </button>
+            </p>
+          ) : (
+            <input
+              type="text"
+              value={form.address}
+              onChange={(e) => updateField('address', e.target.value)}
+              placeholder="Address (or click the map)"
+              className="w-full rounded border border-slate-300 px-1.5 py-1"
+            />
+          )}
+
+          <input
+            type="url"
+            value={form.website}
+            onChange={(e) => updateField('website', e.target.value)}
+            placeholder="Website"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={(e) => updateField('phone', e.target.value)}
+            placeholder="Phone"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+          <input
+            type="text"
+            value={form.contactName}
+            onChange={(e) => updateField('contactName', e.target.value)}
+            placeholder="Contact name"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+          <input
+            type="email"
+            value={form.email}
+            onChange={(e) => updateField('email', e.target.value)}
+            placeholder="Contact email"
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+
+          <label className="block pt-1 text-slate-500">Follow up on</label>
+          <input
+            type="datetime-local"
+            value={form.followUpAt}
+            onChange={(e) => updateField('followUpAt', e.target.value)}
+            className="w-full rounded border border-slate-300 px-1.5 py-1"
+          />
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full rounded bg-orange-600 px-2 py-1.5 font-medium text-white disabled:opacity-50"
+          >
+            {submitting ? 'Saving…' : 'Save competitor'}
+          </button>
+        </form>
+      )}
+
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   )
 }

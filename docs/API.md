@@ -42,5 +42,6 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | GET | `/competitors/{id}` | Get a competitor | Yes |
 | PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md) | Yes |
 | DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history) | Yes |
+| GET | `/competitors/{id}/calendar-link` | Google Calendar + Outlook "add event" links for the competitor's `follow_up_at`. 409 if no follow-up date is set | Yes |
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.

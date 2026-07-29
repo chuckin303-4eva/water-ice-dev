@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.api.schemas.competitor import (
+    CalendarLinkResponse,
     CompetitorCreateRequest,
     CompetitorResponse,
     CompetitorSummary,
@@ -12,7 +13,7 @@ from app.api.schemas.competitor import (
 )
 from app.core.models.user import User
 from app.db.session import get_db
-from app.services import competitor_service, geocoding_service
+from app.services import calendar_link_service, competitor_service, geocoding_service
 
 router = APIRouter(prefix="/competitors", tags=["competitors"])
 
@@ -75,3 +76,27 @@ def delete_competitor(
 ) -> None:
     competitor = _get_competitor_or_404(db, competitor_id)
     competitor_service.delete_competitor(db, competitor)
+
+
+@router.get("/{competitor_id}/calendar-link", response_model=CalendarLinkResponse)
+def get_calendar_link(
+    competitor_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> CalendarLinkResponse:
+    competitor = _get_competitor_or_404(db, competitor_id)
+    if competitor.follow_up_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="This competitor has no follow-up date set"
+        )
+
+    title = f"Follow up: {competitor.name}"
+    details = competitor.notes or f"Follow-up with {competitor.name}"
+    return CalendarLinkResponse(
+        google=calendar_link_service.google_calendar_link(
+            title, competitor.follow_up_at, details, competitor.address
+        ),
+        outlook=calendar_link_service.outlook_calendar_link(
+            title, competitor.follow_up_at, details, competitor.address
+        ),
+    )
