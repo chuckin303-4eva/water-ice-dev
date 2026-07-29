@@ -381,3 +381,28 @@ Phase 1 item 9. `organizations`/`users`/`roles`/`permissions`/`role_permissions`
 - No schema changes were needed — every table this feature uses (`organizations`, `users`, `roles`, `user_roles`) already existed. Purely additive service/route/frontend work.
 - `docs/API.md` and the seed script's docstring both referenced this feature as "Phase 1 item 8" (stale relative to the current roadmap, where it's item 9, since Import CSV was inserted ahead of it) — corrected as part of this change.
 - A future real permission system, if ever needed, has to be designed fresh rather than grown from `role_permissions` as originally sketched, since that path was deliberately left unused rather than partially built.
+
+---
+
+## ADR-0013: Export CSV — full field set, filter-aware, built for both entities
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 1 item 10, the last item on the current Phase 1 roadmap. ROADMAP.md's own framing: "Portability/trust feature. Valuable, not blocking initial usability." Import CSV (ADR-0011) established the CSV-handling pattern for locations; export is materially simpler since there's no geocoding and no Nominatim rate limit to respect — it's a synchronous read of whatever's already in the database.
+
+### Decision
+1. **Full field set, not the minimal import columns.** Import intentionally stays minimal (ADR-0011's "fill in the rest later" reasoning), but export is a portability/backup operation, not a data-entry form — more data is strictly better here. Reuses each entity's existing `assemble_response` (via `LocationResponse`/`CompetitorResponse`'s own field list) so the exported columns can never drift from what the API itself considers a location/competitor's full shape.
+2. **Filter-aware**: `GET /locations/export` and `GET /competitors/export` accept the exact same query params as their `GET /locations`/`GET /competitors` list endpoints (ADR-0010) and export only the matching rows. "Export what I'm currently looking at" just works without a separate export-specific filter UI.
+3. **Built for both locations and competitors**, not just locations. Import CSV was locations-only (competitors didn't exist yet when it shipped); now that the pattern and both entities exist, adding the second export endpoint was small incremental cost for a more complete portability story — seeing competitors on the map but being unable to export them would have been an odd gap.
+4. **Synchronous, no row cap.** Unlike import, there's no per-row external network call (no geocoding), so there's no rate-limit-driven reason to cap size or delay — a straight `SELECT` + CSV serialization scales fine at the row counts this product handles today.
+5. **Route registration order matters again**: both `GET /{id}/export` routes are declared *before* their respective `GET /{id}` routes in the same file, for the same reason as `POST /import` needed no such care (different HTTP method) but export does (same GET method) — Starlette matches routes in registration order, and `/export` would otherwise be swallowed by `/{location_id}`'s path shape and fail UUID parsing before ever reaching the export handler.
+
+### Alternatives considered
+- **A single combined export (locations + competitors in one file/zip)**: rejected — two flat CSVs with different, unrelated column sets is simpler to consume in a spreadsheet than one file mixing shapes or a zip archive nobody asked for.
+- **Exporting only the minimal columns import accepts, for column-set symmetry**: rejected — import and export serve different purposes (data entry vs. portability/backup) and don't need matching scope just for its own sake.
+
+### Consequences
+- The exported CSV's column set is coupled to `LocationResponse`/`CompetitorResponse` — adding a field to either response automatically appears in the export next time, with no separate export-schema to keep in sync.
+- No streaming for very large exports (the whole CSV is built in memory as one string) — acceptable at current scale; revisit if/when real row counts make that a measured problem, consistent with this project's "don't build for a scale that doesn't exist yet" pattern elsewhere.

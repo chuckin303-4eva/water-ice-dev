@@ -49,4 +49,5 @@ export const locationsApi = {
     formData.append('file', file)
     return api.postForm<LocationImportSummary>('/locations/import', formData)
   },
+  exportCsv: (filters?: LocationFilters) => api.getBlob(`/locations/export${buildLocationQuery(filters)}`),
 }

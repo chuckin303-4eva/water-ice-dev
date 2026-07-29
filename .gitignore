@@ -30,3 +30,8 @@ out/
 coverage/
 .coverage
 .pytest_cache/
+
+# Downloaded exports (locations.csv / competitors.csv, ADR-0013) land at
+# repo root in some local dev setups depending on browser download
+# defaults -- never intended to be committed.
+/*.csv

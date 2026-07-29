@@ -1,4 +1,7 @@
 import { useState } from 'react'
+import { competitorsApi } from '../api/competitors'
+import { ApiError, downloadBlob } from '../api/client'
+import { locationsApi } from '../api/locations'
 import type { CompetitorFilters, LocationFilters } from '../api/types'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
@@ -49,6 +52,8 @@ interface Props {
  */
 export function FilterPanel({ filters, onChange }: Props) {
   const [open, setOpen] = useState(false)
+  const [exporting, setExporting] = useState<'locations' | 'competitors' | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   function toggleStatus(status: string) {
@@ -56,6 +61,32 @@ export function FilterPanel({ filters, onChange }: Props) {
       ? filters.statuses.filter((s) => s !== status)
       : [...filters.statuses, status]
     onChange({ ...filters, statuses: next })
+  }
+
+  async function handleExportLocations() {
+    setError(null)
+    setExporting('locations')
+    try {
+      const blob = await locationsApi.exportCsv(toLocationFilters(filters))
+      downloadBlob(blob, 'locations.csv')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not export locations')
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  async function handleExportCompetitors() {
+    setError(null)
+    setExporting('competitors')
+    try {
+      const blob = await competitorsApi.exportCsv(toCompetitorFilters(filters))
+      downloadBlob(blob, 'competitors.csv')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not export competitors')
+    } finally {
+      setExporting(null)
+    }
   }
 
   const activeCount =
@@ -143,6 +174,30 @@ export function FilterPanel({ filters, onChange }: Props) {
           >
             Reset
           </button>
+
+          <div className="border-t border-slate-100 pt-2">
+            <p className="mb-1 font-semibold text-slate-700">Export (matches filters above)</p>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={handleExportLocations}
+                disabled={exporting !== null}
+                className="flex-1 rounded border border-slate-300 px-2 py-1 text-slate-600 disabled:opacity-50"
+              >
+                {exporting === 'locations' ? 'Exporting…' : 'Locations'}
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCompetitors}
+                disabled={exporting !== null}
+                className="flex-1 rounded border border-slate-300 px-2 py-1 text-slate-600 disabled:opacity-50"
+              >
+                {exporting === 'competitors' ? 'Exporting…' : 'Competitors'}
+              </button>
+            </div>
+          </div>
+
+          {error && <p className="text-red-600">{error}</p>}
         </div>
       )}
     </div>

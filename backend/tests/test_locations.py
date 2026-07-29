@@ -331,3 +331,46 @@ def test_filter_by_min_opportunity_score(client, test_user: User) -> None:
     good_only = client.get("/locations?min_opportunity_score=50", headers=headers)
     addresses = {loc["address"] for loc in good_only.json()}
     assert addresses == {"High score"}
+
+
+def test_export_returns_csv_with_all_locations(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post("/locations", json={"address": "123 Main St"}, headers=headers)
+    client.post("/locations", json={"address": "456 Oak Ave"}, headers=headers)
+
+    response = client.get("/locations/export", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+
+    lines = response.text.strip().splitlines()
+    assert len(lines) == 3  # header + 2 rows
+    header = lines[0].split(",")
+    assert "address" in header
+    assert "opportunity_score" in header
+    assert "123 Main St" in response.text
+    assert "456 Oak Ave" in response.text
+
+
+def test_export_returns_header_only_when_no_locations_match(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    response = client.get("/locations/export?statuses=archived", headers=headers)
+    assert response.status_code == 200
+    lines = response.text.strip().splitlines()
+    assert len(lines) == 1  # header only
+    assert "address" in lines[0]
+
+
+def test_export_respects_filters(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post("/locations", json={"address": "Ice Only", "serves_ice": True}, headers=headers)
+    client.post("/locations", json={"address": "Neither Set"}, headers=headers)
+
+    response = client.get("/locations/export?serves_ice=true", headers=headers)
+    assert "Ice Only" in response.text
+    assert "Neither Set" not in response.text
+
+
+def test_export_requires_auth(client) -> None:
+    response = client.get("/locations/export")
+    assert response.status_code == 401

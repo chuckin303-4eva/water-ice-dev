@@ -41,6 +41,7 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/locations` | Create a location/prospect. Requires `address`, or `latitude`+`longitude`, or both -- whichever is missing is filled in by geocoding (Nominatim) | Yes |
 | GET | `/locations` | List locations. Filters (ADR-0010): `?statuses=` (repeatable, e.g. `statuses=prospect&statuses=active`), `?serves_ice=true`, `?serves_water=true` (opt-in narrowing -- OR across whichever are set, omitted means no filter), `?min_opportunity_score=` | Yes |
 | POST | `/locations/import` | Bulk-create locations from a CSV file (`multipart/form-data`, field name `file`). Columns: `address` (or `latitude`+`longitude`), `serves_ice`, `serves_water`, `notes`. Max 100 rows per file (422 if exceeded); partial success -- returns `{total_rows, created, errors: [{row, message}]}`, one row's failure doesn't block the rest (ADR-0011) | Yes |
+| GET | `/locations/export` | Download all locations matching the same filters as `GET /locations` as a CSV file, full field set (not just the import columns) (ADR-0013) | Yes |
 | GET | `/locations/{id}` | Get a location | Yes |
 | PUT | `/locations/{id}` | Update a location (partial; logs every changed field to `update_log`). Setting `visibility_rating`/`traffic_score` (1-10 each) triggers score recalculation (ADR-0009) | Yes |
 | DELETE | `/locations/{id}` | Archive a location (soft delete, status -> `archived`) | Yes |
@@ -50,6 +51,7 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/locations/{id}/recalculate-score` | Recompute `competition_score`/`opportunity_score`/`confidence_score` without changing any other field -- for when nearby `competitors` data changed instead of the location itself | Yes |
 | POST | `/competitors` | Create a competitor. Requires `name` plus `address`, or `latitude`+`longitude`, or both | Yes |
 | GET | `/competitors` | List competitors. Filters (ADR-0010): `?serves_ice=true`, `?serves_water=true` (same opt-in OR semantics as locations), `?brand=` (case-insensitive partial match) | Yes |
+| GET | `/competitors/export` | Download all competitors matching the same filters as `GET /competitors` as a CSV file, full field set (ADR-0013) | Yes |
 | GET | `/competitors/{id}` | Get a competitor | Yes |
 | PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md) | Yes |
 | DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history) | Yes |

@@ -27,4 +27,6 @@ export const competitorsApi = {
     api.put<CompetitorDetail>(`/competitors/${id}`, input),
   remove: (id: string) => api.delete<void>(`/competitors/${id}`),
   getCalendarLinks: (id: string) => api.get<CompetitorCalendarLinks>(`/competitors/${id}/calendar-link`),
+  exportCsv: (filters?: CompetitorFilters) =>
+    api.getBlob(`/competitors/export${buildCompetitorQuery(filters)}`),
 }

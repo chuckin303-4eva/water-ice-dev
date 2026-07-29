@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -19,6 +20,7 @@ from app.core.models.user import User
 from app.db.session import get_db
 from app.services import (
     calendar_link_service,
+    csv_export_service,
     csv_import_service,
     geocoding_service,
     location_service,
@@ -82,6 +84,34 @@ async def import_locations(
         total_rows=result.total_rows,
         created=result.created,
         errors=[LocationImportRowError(row=e.row, message=e.message) for e in result.errors],
+    )
+
+
+@router.get("/export")
+def export_locations(
+    statuses: list[str] | None = Query(None),
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    min_opportunity_score: float | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Same filters as GET /locations -- exporting respects whatever
+    view the caller currently has filtered down to. Registered before
+    GET /{location_id} so "export" is never mistaken for a location ID
+    (Starlette matches routes in registration order).
+    """
+    csv_content = csv_export_service.export_locations_csv(
+        db,
+        statuses=statuses,
+        serves_ice=serves_ice,
+        serves_water=serves_water,
+        min_opportunity_score=min_opportunity_score,
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=locations.csv"},
     )
 
 

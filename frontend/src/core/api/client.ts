@@ -58,6 +58,35 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>
 }
 
+async function getBlob(path: string): Promise<Blob> {
+  const token = getToken()
+  const headers = new Headers()
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+  const response = await fetch(`${BASE_URL}${path}`, { headers })
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText)
+  }
+  return response.blob()
+}
+
+/** Triggers a browser file download from an already-fetched blob (e.g.
+ * a CSV export response) -- there's no <a href> to point at since the
+ * endpoint requires an auth header, so the file has to be fetched first
+ * and then "clicked" via a throwaway object URL.
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
@@ -66,4 +95,5 @@ export const api = {
     request<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   postForm: <T>(path: string, formData: FormData) => request<T>(path, { method: 'POST', body: formData }),
+  getBlob,
 }

@@ -216,3 +216,38 @@ def test_filter_by_brand_is_case_insensitive_partial_match(client, test_user: Us
     matches = client.get("/competitors?brand=twice", headers=headers)
     assert len(matches.json()) == 1
     assert matches.json()[0]["name"] == "Site A"
+
+
+def test_export_returns_csv_with_all_competitors(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post("/competitors", json={"address": "456 Rival Ave", "name": "Twice the Ice"}, headers=headers)
+    client.post("/competitors", json={"address": "789 Rival Ave", "name": "Kooler Ice"}, headers=headers)
+
+    response = client.get("/competitors/export", headers=headers)
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment" in response.headers["content-disposition"]
+
+    lines = response.text.strip().splitlines()
+    assert len(lines) == 3  # header + 2 rows
+    assert "name" in lines[0]
+    assert "Twice the Ice" in response.text
+    assert "Kooler Ice" in response.text
+
+
+def test_export_respects_brand_filter(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave", "name": "Site A", "brand": "Twice the Ice"},
+        headers=headers,
+    )
+    client.post(
+        "/competitors",
+        json={"address": "789 Rival Ave", "name": "Site B", "brand": "Kooler Ice"},
+        headers=headers,
+    )
+
+    response = client.get("/competitors/export?brand=twice", headers=headers)
+    assert "Site A" in response.text
+    assert "Site B" not in response.text

@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -13,7 +14,7 @@ from app.api.schemas.competitor import (
 )
 from app.core.models.user import User
 from app.db.session import get_db
-from app.services import calendar_link_service, competitor_service, geocoding_service
+from app.services import calendar_link_service, competitor_service, csv_export_service, geocoding_service
 
 router = APIRouter(prefix="/competitors", tags=["competitors"])
 
@@ -50,6 +51,28 @@ def list_competitors(
         db, serves_ice=serves_ice, serves_water=serves_water, brand=brand
     )
     return [CompetitorSummary.model_validate(c) for c in competitors]
+
+
+@router.get("/export")
+def export_competitors(
+    serves_ice: bool | None = None,
+    serves_water: bool | None = None,
+    brand: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """Same filters as GET /competitors. Registered before
+    GET /{competitor_id} so "export" is never mistaken for a competitor
+    ID (Starlette matches routes in registration order).
+    """
+    csv_content = csv_export_service.export_competitors_csv(
+        db, serves_ice=serves_ice, serves_water=serves_water, brand=brand
+    )
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=competitors.csv"},
+    )
 
 
 @router.get("/{competitor_id}", response_model=CompetitorResponse)
