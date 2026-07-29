@@ -1,7 +1,6 @@
 """SQLAlchemy models for the core (industry-independent) platform.
 
-Only Phase 1 tables exist here (see docs/ROADMAP.md). Photos, documents,
-reviews, validation_queue, opportunities, resource_listings, tasks,
+Photos, documents, reviews, opportunities, resource_listings, tasks,
 settings, and refresh_runs are designed in docs/DATABASE.md but
 intentionally not modeled yet -- they arrive with the migration for the
 phase that actually needs them.
@@ -19,3 +18,4 @@ from app.core.models.permission import Permission  # noqa: F401
 from app.core.models.role import Role  # noqa: F401
 from app.core.models.update_log import UpdateLog  # noqa: F401
 from app.core.models.user import User  # noqa: F401
+from app.core.models.validation_queue import ValidationQueue  # noqa: F401

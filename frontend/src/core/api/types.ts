@@ -50,7 +50,39 @@ export interface LocationImportRowError {
 export interface LocationImportSummary {
   total_rows: number
   created: number
+  queued: number
   errors: LocationImportRowError[]
+}
+
+export interface ValidationQueueItem {
+  id: number
+  entity_type: string
+  entity_id: string | null
+  proposed_changes: Record<string, unknown>
+  reason: string | null
+  submitted_by: number | null
+  submitted_by_email: string | null
+  status: string
+  reviewed_by: number | null
+  reviewed_at: string | null
+  created_at: string
+}
+
+/** Distinguishes a real LocationDetail from a queued-for-review response
+ * -- both can come back from the same create/update call depending on
+ * whether the org requires review and the caller is an admin (ADR-0014).
+ */
+export function isPendingReview(value: unknown): value is ValidationQueueItem {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'entity_type' in value &&
+    'proposed_changes' in value
+  )
+}
+
+export interface OrganizationSettings {
+  require_review_for_submissions: boolean
 }
 
 export interface LocationFilters {

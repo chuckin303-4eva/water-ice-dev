@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useMapEvents } from 'react-leaflet'
 import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
+import { isPendingReview } from '../api/types'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -19,6 +20,7 @@ export function AddProspectControl({ onCreated }: Props) {
   const [addressInput, setAddressInput] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useMapEvents({
@@ -30,12 +32,20 @@ export function AddProspectControl({ onCreated }: Props) {
 
   async function createProspect(input: { address?: string; latitude?: number; longitude?: number }) {
     setError(null)
+    setQueuedMessage(null)
     setSubmitting(true)
     try {
-      await locationsApi.create(input)
+      const result = await locationsApi.create(input)
       setIsAdding(false)
       setAddressInput('')
-      onCreated()
+      if (isPendingReview(result)) {
+        // Validation workflow (ADR-0014) -- the org requires review and
+        // this account isn't an admin, so nothing was actually created
+        // yet; an admin has to approve it on the Review page first.
+        setQueuedMessage('Submitted for review -- an admin needs to approve it before it appears on the map.')
+      } else {
+        onCreated()
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not create prospect')
     } finally {
@@ -87,6 +97,7 @@ export function AddProspectControl({ onCreated }: Props) {
       )}
 
       {submitting && <p className="mt-2 text-xs text-slate-500">Creating…</p>}
+      {queuedMessage && <p className="mt-2 text-xs text-amber-700">{queuedMessage}</p>}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   )

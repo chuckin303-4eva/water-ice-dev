@@ -34,5 +34,6 @@ def test_all_phase1_tables_are_created() -> None:
         "location_call_notes",
         "update_log",
         "competitors",
+        "validation_queue",
     }
     assert expected.issubset(table_names)

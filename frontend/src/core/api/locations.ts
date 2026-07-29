@@ -7,6 +7,7 @@ import type {
   LocationImportSummary,
   LocationSummary,
   UpdateLocationInput,
+  ValidationQueueItem,
 } from './types'
 
 interface CalendarLinks {
@@ -32,9 +33,13 @@ function buildLocationQuery(filters?: LocationFilters): string {
 export const locationsApi = {
   list: (filters?: LocationFilters) => api.get<LocationSummary[]>(`/locations${buildLocationQuery(filters)}`),
   get: (id: string) => api.get<LocationDetail>(`/locations/${id}`),
-  create: (input: CreateLocationInput) => api.post<LocationDetail>('/locations', input),
+  // May return a ValidationQueueItem instead of a LocationDetail if the
+  // caller's organization requires review and they're not an admin
+  // (ADR-0014) -- check with isPendingReview() before assuming success.
+  create: (input: CreateLocationInput) =>
+    api.post<LocationDetail | ValidationQueueItem>('/locations', input),
   update: (id: string, input: UpdateLocationInput) =>
-    api.put<LocationDetail>(`/locations/${id}`, input),
+    api.put<LocationDetail | ValidationQueueItem>(`/locations/${id}`, input),
   archive: (id: string) => api.delete<void>(`/locations/${id}`),
   recalculateScore: (id: string) => api.post<LocationDetail>(`/locations/${id}/recalculate-score`),
   listCallNotes: (id: string) => api.get<CallNote[]>(`/locations/${id}/call-notes`),

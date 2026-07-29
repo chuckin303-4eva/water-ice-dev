@@ -11,6 +11,13 @@ respect Nominatim's documented ~1 request/second usage policy
 this, but a bulk import is exactly the "more than occasional" traffic
 pattern that policy exists for. A row cap keeps a single import request
 bounded in duration rather than open-ended.
+
+Validation workflow (ADR-0014): when the caller's organization requires
+review and they're not an admin, rows are queued via
+`validation_service.propose_create_location` instead of created
+directly. Queueing doesn't geocode at all (that happens once, at
+approval time) so queued rows skip the rate-limit delay entirely --
+there's no external request to rate-limit yet.
 """
 
 import csv
@@ -22,7 +29,7 @@ from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.api.schemas.location import LocationCreateRequest
-from app.services import geocoding_service, location_service
+from app.services import geocoding_service, location_service, validation_service
 
 MAX_IMPORT_ROWS = 100
 ROW_DELAY_SECONDS = 1.1
@@ -40,6 +47,7 @@ class RowError:
 class ImportResult:
     total_rows: int
     created: int
+    queued: int = 0
     errors: list[RowError] = field(default_factory=list)
 
 
@@ -67,7 +75,9 @@ def _row_to_request(row: dict) -> LocationCreateRequest:
     )
 
 
-def import_locations_from_csv(db: Session, file_content: bytes, created_by: int) -> ImportResult:
+def import_locations_from_csv(
+    db: Session, file_content: bytes, created_by: int, require_review: bool = False
+) -> ImportResult:
     text = file_content.decode("utf-8-sig")  # -sig strips the BOM Excel likes to add
     rows = list(csv.DictReader(io.StringIO(text)))
 
@@ -83,6 +93,11 @@ def import_locations_from_csv(db: Session, file_content: bytes, created_by: int)
         except (ValidationError, ValueError) as exc:
             result.errors.append(RowError(row=index, message=str(exc)))
             continue  # no geocode attempted -- no rate-limit delay needed
+
+        if require_review:
+            validation_service.propose_create_location(db, request, submitted_by=created_by)
+            result.queued += 1
+            continue  # no geocode happens until approval -- nothing to rate-limit yet
 
         try:
             location_service.create_location(db, request, created_by=created_by)

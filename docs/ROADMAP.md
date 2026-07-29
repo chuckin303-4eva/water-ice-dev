@@ -10,7 +10,7 @@
 
 **Standing tension worth naming:** "revenue first" and "phases completed in order" pull against each other here, because Subscriptions/Billing (the actual revenue mechanism) are scheduled in Phase 3, after the full MVP and validation workflow. That's fine as a build order — a location-intelligence tool has to be worth paying for before billing infrastructure matters — but it means "revenue-generating" in Phase 1/2 should be read as "features that make the product sellable/demoable," not "features that collect money." If you want actual paying customers before Phase 3, that's handled outside the app (manual invoicing) rather than by reordering the phases.
 
-## Phase 1 — MVP (in progress)
+## Phase 1 — MVP (done)
 
 Goal: usable product in customer hands as fast as possible. Ordered by dependency chain and revenue leverage (what makes the product demoable/sellable soonest), not by the order features were listed.
 
@@ -27,14 +27,14 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | 9 | Admin dashboard | Medium | Done (ADR-0012). Self-serve registration (`POST /auth/register`, new org + first admin user, no email verification/CAPTCHA yet), plus a `/admin` "Team" page: list teammates, add a teammate (admin sets their password directly, no email service to invite through), change role (admin/member) or active status. Two system-wide roles only -- no fine-grained permission-slug system, since nothing needs it yet. First real use of the `react-router-dom` dependency installed back in ADR-0007. |
 | 10 | Export CSV | Medium | Done (ADR-0013). `GET /locations/export` and `GET /competitors/export`, full field set, same filters as the list endpoints (export-what-you're-looking-at). Synchronous, no row cap -- unlike import there's no geocoding/rate limit to work around. This closes out every item currently on the Phase 1 roadmap. |
 
-## Phase 2 — Validation & Enrichment (not started, gated on Phase 1)
+## Phase 2 — Validation & Enrichment (in progress)
 
-| Feature | Rank |
-|---|---|
-| Validation workflow | High |
-| Host businesses | High |
-| Opportunity scoring (refined) | High |
-| Photos | Medium |
+| Feature | Rank | Why this rank |
+|---|---|---|
+| Validation workflow | High | Done (ADR-0014). Opt-in per organization (`require_review_for_submissions`, default off) -- when on, a non-admin's `POST`/`PUT /locations` and per-row `POST /locations/import` are queued to `validation_queue` instead of applying directly; admin writes always bypass it. New admin-only Review page (`/admin/review`) to approve/reject. Deliberately narrow scope: locations only, not competitors (which stay "corrected freely, not audited" per ADR-0008) and not archive/recalculate. Default-off specifically to avoid changing behavior for any existing organization (ADR-0005 backward-compat pause condition). |
+| Host businesses | High | |
+| Opportunity scoring (refined) | High | |
+| Photos | Medium | |
 
 ## Phase 3 — Automation & Monetization (not started, gated on Phase 2)
 

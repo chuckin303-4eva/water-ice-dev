@@ -17,7 +17,7 @@ Core mutable tables (especially `locations`) are updated in place for current-st
 ## Identity & access (schema from ADR-0002, populated/enforced by ADR-0012)
 
 **organizations** — a customer/tenant.
-- `id` (PK), `name`, `created_at`
+- `id` (PK), `name`, `require_review_for_submissions` (bool, default `false` — ADR-0014), `created_at`
 
 **users**
 - `id` (PK), `organization_id` (FK → organizations, indexed), `email` (unique), `hashed_password` (Argon2), `is_active`, `created_at`
@@ -159,6 +159,7 @@ Indexed on `(entity_type, entity_id)` in all three.
 
 **validation_queue** — records awaiting human review before their data is trusted (newly scraped/imported locations, proposed edits, etc.).
 - `id` (PK), `entity_type`, `entity_id`, `proposed_changes` (JSONB — the specific field/value pairs awaiting approval), `reason`, `submitted_by` (FK → users, nullable — null for system/import submissions), `status` (`pending`/`approved`/`rejected`), `reviewed_by` (FK → users, nullable), `reviewed_at`, `created_at`
+- **Implemented** (ADR-0014) — currently the only writer is the Phase 2 validation workflow: `POST /locations`, `PUT /locations/{id}`, and per-row `POST /locations/import` land here instead of applying directly when the submitter's organization has `require_review_for_submissions = true` and the submitter isn't an admin. `entity_id = NULL` means "propose a new location"; `entity_id` set means "propose changes to this existing location," with `proposed_changes` holding only the changed fields. Approving a queued entry replays the create/update as the original submitter (so `update_log` attributes it correctly), not as the reviewer. The Market Refresh Engine's planned use (ADR-0004) is not yet built.
 
 **update_log** — the append-only audit trail described above. **Implemented** (ADR-0006) — the first real writer is `locations` create/update/archive.
 - `id` (PK), `entity_type`, `entity_id` (text — holds the string form of whatever PK type the entity uses), `field_name`, `old_value`, `new_value`, `changed_by` (FK → users, nullable — null for system changes), `change_source` (`manual`/`import`/`system`/`verification`), `changed_at`

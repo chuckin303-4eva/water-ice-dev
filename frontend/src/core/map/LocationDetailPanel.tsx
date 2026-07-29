@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
-import type { CallNote, LocationDetail, LocationSummary } from '../api/types'
+import { isPendingReview, type CallNote, type LocationDetail, type LocationSummary } from '../api/types'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -20,6 +20,7 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
   const [visibilityRating, setVisibilityRating] = useState('')
   const [trafficScore, setTrafficScore] = useState('')
   const [recalculating, setRecalculating] = useState(false)
+  const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useEffect(() => {
@@ -38,14 +39,21 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
 
   async function handleSaveRatings(event: FormEvent) {
     event.preventDefault()
+    setQueuedMessage(null)
     try {
-      const updated = await locationsApi.update(location.id, {
+      const result = await locationsApi.update(location.id, {
         visibility_rating: visibilityRating === '' ? undefined : Number(visibilityRating),
         traffic_score: trafficScore === '' ? undefined : Number(trafficScore),
       })
-      setDetail(updated)
       setEditingScore(false)
-      onChanged()
+      if (isPendingReview(result)) {
+        // Validation workflow (ADR-0014) -- the change hasn't actually
+        // been applied yet, so `detail` intentionally isn't touched.
+        setQueuedMessage('Change submitted for review -- an admin needs to approve it first.')
+      } else {
+        setDetail(result)
+        onChanged()
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not save ratings')
     }
@@ -252,6 +260,7 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
         ))}
       </ul>
 
+      {queuedMessage && <p className="mt-2 text-xs text-amber-700">{queuedMessage}</p>}
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
     </div>
   )

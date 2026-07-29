@@ -1,7 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -16,6 +15,7 @@ from app.api.schemas.location import (
     LocationSummary,
     LocationUpdateRequest,
 )
+from app.api.schemas.validation import ValidationQueueResponse
 from app.core.models.user import User
 from app.db.session import get_db
 from app.services import (
@@ -24,7 +24,9 @@ from app.services import (
     csv_import_service,
     geocoding_service,
     location_service,
+    organization_service,
     scoring_service,
+    validation_service,
 )
 
 router = APIRouter(prefix="/locations", tags=["locations"])
@@ -37,12 +39,32 @@ def _get_location_or_404(db: Session, location_id: uuid.UUID):
     return location
 
 
-@router.post("", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
+def _requires_review(db: Session, current_user: User) -> bool:
+    """Validation workflow (ADR-0014): opt-in per organization, and even
+    then only for non-admins -- an admin's own writes always apply
+    directly, same as before this feature existed.
+    """
+    if organization_service.user_is_admin(db, current_user):
+        return False
+    organization = organization_service.get_organization(db, current_user.organization_id)
+    return organization is not None and organization.require_review_for_submissions
+
+
+@router.post(
+    "",
+    response_model=LocationResponse | ValidationQueueResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_location(
     body: LocationCreateRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> LocationResponse:
+) -> LocationResponse | ValidationQueueResponse:
+    if _requires_review(db, current_user):
+        entry = validation_service.propose_create_location(db, body, submitted_by=current_user.id)
+        response.status_code = status.HTTP_202_ACCEPTED
+        return validation_service.assemble_response(db, entry)
     try:
         location = location_service.create_location(db, body, created_by=current_user.id)
     except geocoding_service.GeocodingError as exc:
@@ -77,12 +99,15 @@ async def import_locations(
 ) -> LocationImportSummaryResponse:
     content = await file.read()
     try:
-        result = csv_import_service.import_locations_from_csv(db, content, created_by=current_user.id)
+        result = csv_import_service.import_locations_from_csv(
+            db, content, created_by=current_user.id, require_review=_requires_review(db, current_user)
+        )
     except csv_import_service.ImportTooLargeError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return LocationImportSummaryResponse(
         total_rows=result.total_rows,
         created=result.created,
+        queued=result.queued,
         errors=[LocationImportRowError(row=e.row, message=e.message) for e in result.errors],
     )
 
@@ -125,14 +150,21 @@ def get_location(
     return location_service.assemble_response(db, location)
 
 
-@router.put("/{location_id}", response_model=LocationResponse)
+@router.put("/{location_id}", response_model=LocationResponse | ValidationQueueResponse)
 def update_location(
     location_id: uuid.UUID,
     body: LocationUpdateRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> LocationResponse:
+) -> LocationResponse | ValidationQueueResponse:
     location = _get_location_or_404(db, location_id)
+    if _requires_review(db, current_user):
+        entry = validation_service.propose_update_location(
+            db, location_id, body, submitted_by=current_user.id
+        )
+        response.status_code = status.HTTP_202_ACCEPTED
+        return validation_service.assemble_response(db, entry)
     location = location_service.update_location(db, location, body, updated_by=current_user.id)
     return location_service.assemble_response(db, location)
 

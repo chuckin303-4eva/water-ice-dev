@@ -406,3 +406,36 @@ Phase 1 item 10, the last item on the current Phase 1 roadmap. ROADMAP.md's own 
 ### Consequences
 - The exported CSV's column set is coupled to `LocationResponse`/`CompetitorResponse` — adding a field to either response automatically appears in the export next time, with no separate export-schema to keep in sync.
 - No streaming for very large exports (the whole CSV is built in memory as one string) — acceptable at current scale; revisit if/when real row counts make that a measured problem, consistent with this project's "don't build for a scale that doesn't exist yet" pattern elsewhere.
+
+---
+
+## ADR-0014: Validation workflow — opt-in per-organization review queue
+
+Date: 2026-07-29
+Status: Accepted
+
+### Context
+Phase 2, first item. `validation_queue` was designed in ADR-0003 as part of the original full schema but never implemented — every location write (create/update/import) has always applied directly, regardless of who made it. The product need: an org owner running a team of non-admin data-entry staff may want a chance to review new/changed locations before they go live, rather than trusting every submission unconditionally.
+
+The obvious naive design — "non-admins always get queued" — was checked against actual test/runtime behavior before writing any code: every existing user fixture and every real dev/seed user has no row in `user_roles` at all, and `get_user_role_name`'s documented fallback for that case is `"member"`. An unconditional queue-if-non-admin rule would have silently changed real existing behavior for every current user of the app the moment this feature shipped — a backward-compatibility break, one of the five explicit pause conditions in ADR-0005.
+
+### Decision
+1. **Opt-in per organization, default off.** New `organizations.require_review_for_submissions` boolean, `default=False`. No existing organization's behavior changes unless an admin explicitly turns it on via `PUT /organizations/settings` (admin-only; `GET /organizations/settings` is any authenticated user, so a non-admin can at least see whether it's on). This sidesteps the backward-compat pause condition by construction rather than by asking for an exception to it.
+2. **Even when on, admin writes always apply directly.** The queue exists to let an admin review *other people's* submissions, not their own — an admin gaining an approval step for their own work would be pure friction with no safety benefit, since they already have full write access.
+3. **Scope is narrow: only `POST /locations`, `PUT /locations/{id}`, and per-row `POST /locations/import`.** Does not apply to archiving (`DELETE /locations/{id}`), score recalculation, competitors, or call notes — this feature is specifically about "is this location data trustworthy," not a general-purpose approval gate over every mutation in the app. Competitors stay in ADR-0008's "corrected freely, not audited" model; extending review to them was never asked for and would be scope creep.
+4. **A queued write returns `202 Accepted` with a `ValidationQueueResponse`, not the normal `201`/`200` resource.** `POST`/`PUT /locations` now return a `LocationResponse | ValidationQueueResponse` union; the frontend distinguishes the two with a type guard (`isPendingReview`) rather than relying on the status code alone, since both shapes need to be handled wherever these calls are made (map add-prospect, rating edits, CSV import).
+5. **Approval replays the change as the original submitter, not the reviewer.** `validation_service.approve()` calls `location_service.create_location`/`update_location` with `created_by`/`updated_by` set to `entry.submitted_by`, so `update_log` (ADR-0003/ADR-0006) attributes the eventual change to whoever actually proposed it, not whoever clicked Approve.
+6. **CSV import rows skip the per-row rate-limit delay when queued.** A queued row has no geocode call yet (geocoding happens at `location_service.create_location` time, which only runs on approval), so there's nothing to throttle until then — `ImportResult` gained a `queued` count alongside `created`/`errors` so the summary stays honest about what actually happened to each row.
+7. **Cross-org access returns 404, not 403.** `GET /validation-queue` is scoped to entries whose submitter belongs to the caller's organization; reusing an entry ID from another org 404s rather than 403s, consistent with the existing "don't leak existence" pattern used elsewhere in this project.
+
+### Alternatives considered
+- **Unconditional "non-admins are always queued" (no org-level toggle)**: rejected outright per the Context section — a real backward-compatibility break affecting every existing user, not a hypothetical one.
+- **A role/permission-slug-based review requirement** (extending ADR-0012's unused `permissions`/`role_permissions` tables): rejected — this feature only ever needed a single boolean (admin bypasses, org opts in or out), not a granular per-capability system with nothing else in the app to hang off it yet.
+- **Applying review to competitors and call notes too**: rejected — not requested, and would contradict ADR-0008's deliberate "competitors are corrected freely, not audited" design.
+- **Returning normal `200`/`201` for a queued write with a `status: "pending"` field instead of a distinct `202` + different response shape**: rejected — a distinct status code and response shape makes "this didn't actually happen yet" impossible to miss in either the API contract or the frontend code, rather than relying on every caller to remember to check a field.
+
+### Consequences
+- Every current organization keeps today's behavior (writes apply immediately) until an admin deliberately opts in — verified by running the full existing test suite after each schema/behavior change with zero regressions.
+- `POST`/`PUT /locations` callers (any future API consumer, not just this frontend) must handle a `202` union response, not just the success shape — documented in API.md.
+- A queued update proposes a full replacement of only the changed fields (`exclude_none`), applied against whatever the location's state is *at approval time*, not at submission time — if the location was also edited directly by an admin in the meantime, the queued proposal could apply on top of a different base state than the submitter saw. No conflict detection is built for this edge case; acceptable for v1 given how narrow a window this requires, revisit if it proves to be a real problem.
+- Rejecting a submission is terminal (no edit-and-resubmit flow) — the submitter would need to redo the submission from scratch. Acceptable for v1; a resubmit-with-edits flow is a natural but unscheduled follow-up.

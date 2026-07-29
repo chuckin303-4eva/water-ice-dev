@@ -28,6 +28,11 @@ admin always survives. An earlier version of this file had such a
 guard; it was provably dead for its stated purpose and produced a
 false-positive (blocking a harmless demotion of an already-inactive
 admin) instead, so it was removed rather than patched.
+
+`require_review_for_submissions` (ADR-0014, Phase 2) toggles the
+validation workflow for this org -- see `validation_service.py` for
+what actually happens when it's on. Defaults `False` so no existing
+organization's behavior changes unless an admin opts in.
 """
 
 from sqlalchemy.orm import Session
@@ -145,3 +150,14 @@ def set_user_role(db: Session, user: User, role_name: str) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+
+def get_organization(db: Session, organization_id: int) -> Organization | None:
+    return db.get(Organization, organization_id)
+
+
+def set_require_review(db: Session, organization: Organization, value: bool) -> Organization:
+    organization.require_review_for_submissions = value
+    db.commit()
+    db.refresh(organization)
+    return organization

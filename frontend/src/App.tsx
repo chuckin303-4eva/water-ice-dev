@@ -1,5 +1,6 @@
 import { Navigate, NavLink, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { AdminDashboardPage } from './core/admin/AdminDashboardPage'
+import { ReviewQueuePage } from './core/admin/ReviewQueuePage'
 import { AuthProvider, useAuth } from './core/auth/AuthContext'
 import { LoginPage } from './core/auth/LoginPage'
 import { RegisterPage } from './core/auth/RegisterPage'
@@ -34,9 +35,14 @@ function AppShell() {
               Map
             </NavLink>
             {currentUser?.role === 'admin' && (
-              <NavLink to="/admin" className="text-sm text-slate-500 hover:text-slate-800">
-                Team
-              </NavLink>
+              <>
+                <NavLink to="/admin" end className="text-sm text-slate-500 hover:text-slate-800">
+                  Team
+                </NavLink>
+                <NavLink to="/admin/review" className="text-sm text-slate-500 hover:text-slate-800">
+                  Review
+                </NavLink>
+              </>
             )}
           </div>
           <button type="button" onClick={logout} className="text-sm text-slate-500 hover:text-slate-800">
@@ -65,6 +71,16 @@ function AppShell() {
               <RequireAuth>
                 <RequireAdmin>
                   <AdminDashboardPage />
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/review"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <ReviewQueuePage />
                 </RequireAdmin>
               </RequireAuth>
             }

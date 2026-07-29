@@ -35,3 +35,11 @@ class OrgUserResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OrganizationSettingsResponse(BaseModel):
+    require_review_for_submissions: bool
+
+
+class UpdateOrganizationSettingsRequest(BaseModel):
+    require_review_for_submissions: bool

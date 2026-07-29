@@ -70,6 +70,12 @@ export function ImportCsvControl({ onImported }: Props) {
           <p className="text-slate-700">
             Created {summary.created} of {summary.total_rows} rows.
           </p>
+          {summary.queued > 0 && (
+            <p className="text-amber-700">
+              {summary.queued} row{summary.queued === 1 ? '' : 's'} submitted for review -- an admin
+              needs to approve them first.
+            </p>
+          )}
           {summary.errors.length > 0 && (
             <ul className="max-h-32 space-y-0.5 overflow-y-auto text-red-600">
               {summary.errors.map((e) => (

@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_admin
-from app.api.schemas.organization import CreateOrgUserRequest, OrgUserResponse, UpdateOrgUserRequest
+from app.api.schemas.organization import (
+    CreateOrgUserRequest,
+    OrganizationSettingsResponse,
+    OrgUserResponse,
+    UpdateOrganizationSettingsRequest,
+    UpdateOrgUserRequest,
+)
 from app.core.models.user import User
 from app.db.session import get_db
 from app.services import organization_service
@@ -72,3 +78,33 @@ def update_user(
         user = organization_service.set_user_role(db, user, body.role)
 
     return _to_response(db, user)
+
+
+@router.get("/settings", response_model=OrganizationSettingsResponse)
+def get_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> OrganizationSettingsResponse:
+    """Any authenticated member can read this -- it's useful UI context
+    ("your submission will be queued for review") even though only an
+    admin can change it.
+    """
+    organization = organization_service.get_organization(db, current_user.organization_id)
+    return OrganizationSettingsResponse(
+        require_review_for_submissions=organization.require_review_for_submissions
+    )
+
+
+@router.put("/settings", response_model=OrganizationSettingsResponse)
+def update_settings(
+    body: UpdateOrganizationSettingsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+) -> OrganizationSettingsResponse:
+    organization = organization_service.get_organization(db, current_user.organization_id)
+    organization = organization_service.set_require_review(
+        db, organization, body.require_review_for_submissions
+    )
+    return OrganizationSettingsResponse(
+        require_review_for_submissions=organization.require_review_for_submissions
+    )

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { ApiError } from '../api/client'
 import { organizationsApi, type OrgUser } from '../api/organizations'
 import { useAuth } from '../auth/AuthContext'
@@ -17,6 +18,8 @@ export function AdminDashboardPage() {
   const [role, setRole] = useState<'admin' | 'member'>('member')
   const [creating, setCreating] = useState(false)
   const [justCreated, setJustCreated] = useState<{ email: string; password: string } | null>(null)
+  const [requireReview, setRequireReview] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   function refresh() {
     organizationsApi
@@ -26,6 +29,25 @@ export function AdminDashboardPage() {
   }
 
   useEffect(refresh, [])
+  useEffect(() => {
+    organizationsApi
+      .getSettings()
+      .then((s) => setRequireReview(s.require_review_for_submissions))
+      .catch(() => undefined)
+  }, [])
+
+  async function handleToggleRequireReview(checked: boolean) {
+    setError(null)
+    setSavingSettings(true)
+    try {
+      const settings = await organizationsApi.updateSettings({ require_review_for_submissions: checked })
+      setRequireReview(settings.require_review_for_submissions)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update settings')
+    } finally {
+      setSavingSettings(false)
+    }
+  }
 
   async function handleCreate(event: FormEvent) {
     event.preventDefault()
@@ -125,6 +147,25 @@ export function AdminDashboardPage() {
           })}
         </tbody>
       </table>
+
+      <div className="mb-6 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={requireReview}
+            disabled={savingSettings}
+            onChange={(e) => handleToggleRequireReview(e.target.checked)}
+          />
+          Require admin review for teammate submissions
+        </label>
+        <p className="mt-1 text-xs text-slate-500">
+          When on, locations created or edited by anyone other than an admin are queued on the{' '}
+          <Link to="/admin/review" className="underline">
+            Review
+          </Link>{' '}
+          page instead of applying immediately. Admins are never queued. Off by default.
+        </p>
+      </div>
 
       {justCreated && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-sm">

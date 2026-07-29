@@ -183,4 +183,5 @@ class LocationImportRowError(BaseModel):
 class LocationImportSummaryResponse(BaseModel):
     total_rows: int
     created: int
+    queued: int = 0
     errors: list[LocationImportRowError]
