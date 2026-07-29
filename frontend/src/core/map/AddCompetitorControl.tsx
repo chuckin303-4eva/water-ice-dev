@@ -101,7 +101,7 @@ export function AddCompetitorControl({ onCreated }: Props) {
   return (
     <div
       ref={panelRef}
-      className="absolute top-4 right-4 z-[1000] mt-20 w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-md"
+      className="w-60 rounded-lg border border-slate-200 bg-white p-2 shadow-md"
     >
       <button
         type="button"

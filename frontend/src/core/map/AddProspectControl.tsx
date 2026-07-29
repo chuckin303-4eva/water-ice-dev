@@ -62,7 +62,7 @@ export function AddProspectControl({ onCreated }: Props) {
   return (
     <div
       ref={panelRef}
-      className="absolute top-4 right-4 z-[1000] w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md"
+      className="w-72 rounded-lg border border-slate-200 bg-white p-4 shadow-md"
     >
       <button
         type="button"

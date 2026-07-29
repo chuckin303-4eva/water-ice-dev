@@ -65,8 +65,10 @@ export function MapView() {
             onSelect={(data) => setSelected({ kind: 'competitor', data })}
           />
         )}
-        <AddProspectControl onCreated={refreshLocations} />
-        <AddCompetitorControl onCreated={refreshCompetitors} />
+        <div className="absolute top-4 right-4 z-[1000] flex flex-col items-end gap-3">
+          <AddProspectControl onCreated={refreshLocations} />
+          <AddCompetitorControl onCreated={refreshCompetitors} />
+        </div>
         <FilterPanel filters={filters} onChange={setFilters} />
         <ImportCsvControl onImported={refreshLocations} />
       </MapContainer>
