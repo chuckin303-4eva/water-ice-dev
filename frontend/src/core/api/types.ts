@@ -246,3 +246,29 @@ export interface Photo {
   uploaded_at: string
   is_primary: boolean
 }
+
+export interface Plan {
+  slug: string
+  name: string
+  price_cents: number
+  features: string[]
+}
+
+export interface Subscription {
+  plan: Plan
+  status: string
+  provider: string
+  current_period_start: string | null
+  current_period_end: string | null
+}
+
+export interface Invoice {
+  id: number
+  plan_slug: string
+  amount_cents: number
+  currency: string
+  status: string
+  period_start: string
+  period_end: string
+  issued_at: string
+}

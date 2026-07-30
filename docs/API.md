@@ -86,5 +86,10 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | GET | `/competitors/{id}/photos` | List a competitor's photos, primary first | Yes |
 | DELETE | `/competitors/{id}/photos/{photo_id}` | Delete a photo (row + file) | Yes |
 | GET | `/media/{entity_type}/{filename}` | Serves an uploaded photo. **Not authenticated** -- protected only by the unguessable UUID filename (ADR-0018) | No |
+| GET | `/billing/plans` | List the pricing catalog (`free`/`starter`/`pro`) -- a fixed list in code, not a database table (ADR-0019) | Yes |
+| GET | `/billing/subscription` | Get your organization's current effective plan/status. Returns the free plan implicitly if no subscription row exists | Yes |
+| POST | `/billing/subscribe` | Subscribe or switch to a paid plan (`{plan_slug}`). Backed by a mock provider -- no real payment is collected. 422 for an unknown plan or `plan_slug: "free"` (use cancel instead) | Yes (admin) |
+| POST | `/billing/cancel` | Cancel the current paid subscription immediately, reverting to the free plan. 409 if nothing is active | Yes (admin) |
+| GET | `/billing/invoices` | List billing history for your organization, newest first (ADR-0019) | Yes (admin) |
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.

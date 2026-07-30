@@ -176,6 +176,20 @@ Indexed on `(entity_type, entity_id)` in all three.
 - `id` (PK), `organization_id` (FK, nullable — null is a global/system default, set is a tenant override), `key`, `value` (JSONB), `description`, `updated_by` (FK → users), `updated_at`
 - Unique on `(organization_id, key)`.
 
+## Subscriptions & billing (ADR-0019)
+
+Not part of the original ADR-0002/0003 schema design -- fully new for Phase 3.
+
+**Plans are not a database table.** The pricing catalog (`free`/`starter`/`pro` -- slug, name, price, feature bullets) is a fixed list in `app/services/plan_catalog.py`, referenced by `slug` string. Pricing is a deploy-time business decision, not user-editable data.
+
+**subscriptions** — one upserted row per organization; absence of a row means the organization is on the free plan (same "opt-in, default is the off state" convention as `require_review_for_submissions`).
+- `id` (PK), `organization_id` (FK → organizations, unique index — one subscription per org), `plan_slug`, `status` (`active`/`canceled`), `provider` (`mock` for now), `provider_subscription_id` (nullable), `current_period_start`, `current_period_end`, `created_at`, `updated_at`
+
+**invoices** — append-only billing history, one row per charge event (subscribe, plan switch). `plan_slug`/`amount_cents` are snapshotted at issue time, not joined live from the plan catalog, so a later price change never rewrites what a past invoice says was actually charged.
+- `id` (PK), `organization_id` (FK, indexed), `subscription_id` (FK, indexed), `plan_slug`, `amount_cents`, `currency`, `status` (`paid` for the mock provider), `provider_invoice_id` (nullable), `period_start`, `period_end`, `issued_at`
+
+Backed by a `BillingProvider` interface (same replaceable-module shape as `MarketDataProvider`, ADR-0004) with only a `MockBillingProvider` implemented -- no real payment method is ever collected, every action succeeds immediately. This is a testable prototype of the billing UX and data model, not a live revenue mechanism; see ADR-0019.
+
 ## Market refresh
 
 **refresh_runs** — one row per "Refresh Market" invocation (ADR-0004).

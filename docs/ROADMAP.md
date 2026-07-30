@@ -36,14 +36,14 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | Opportunity scoring (refined) | High | Done (ADR-0017). Two gaps ADR-0009 explicitly deferred, now fixed: `competition_score` only counts competitors sharing a product the location has actually declared (opt-in narrowing, same rule as ADR-0010's filters -- an unconfigured location still counts everything, preserving the original "0 is a confident answer" guarantee), and competitor create/update/delete now automatically recalculate every location within the scoring radius instead of only refreshing on the location's own edits or a manual recalculate call. Wiring in demographics (`population`/`median_income`/`growth_rate`) was explicitly left out -- that needs a real external data source and belongs to the Market Refresh Engine (ADR-0004, Phase 3), not pulled forward here. |
 | Photos | Medium | Done (ADR-0018). `photos` (designed in ADR-0003, never built) now supports locations and competitors -- the two entities with a detail panel to upload from. Local disk storage for now (same MVP decision already made and proven in the sibling LPC project), served unauthenticated at `/media/...` behind an unguessable UUID filename, not real access control -- disclosed tradeoff, revisit before this is customer-facing. Pillow compresses (max 2048px, quality 85), strips EXIF, and doubles as content-type verification. This closes out every item on the Phase 2 roadmap. |
 
-## Phase 3 — Automation & Monetization (not started, Phase 2 complete)
+## Phase 3 — Automation & Monetization (in progress)
 
-| Feature | Rank |
-|---|---|
-| Subscriptions | Critical — this is the actual revenue mechanism |
-| Billing | Critical |
-| Automated updates (Market Refresh Engine, ADR-0004 — already designed) | High |
-| External APIs (free-source providers per ADR-0004) | Medium |
+| Feature | Rank | Why this rank |
+|---|---|---|
+| Subscriptions | Critical — this is the actual revenue mechanism | Prototyped (ADR-0019), **not live** -- a `BillingProvider` interface (mirroring the Market Refresh Engine's provider pattern, ADR-0004) with only a mock implementation: plans/subscribe/switch/cancel/invoice-history all work end to end, but no real payment is ever collected. Built specifically so the full billing UX and data model could be tested without signing up for a real processor first. Wiring in a real provider (Stripe or otherwise) is a distinct future decision requiring explicit sign-off before any actual revenue moves through it. |
+| Billing | Critical | Same ADR-0019 as above -- plans (a fixed in-code catalog, not a database table), subscriptions (one row per org, upserted), and invoices (append-only history) all shipped together as one feature. |
+| Automated updates (Market Refresh Engine, ADR-0004 — already designed) | High | |
+| External APIs (free-source providers per ADR-0004) | Medium | |
 
 ## Phase 4 — Advanced (not started, gated on Phase 3)
 
