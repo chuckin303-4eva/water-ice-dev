@@ -3,6 +3,7 @@ import { locationsApi } from '../api/locations'
 import { ApiError } from '../api/client'
 import { isPendingReview, type CallNote, type HostBusiness, type LocationDetail, type LocationSummary } from '../api/types'
 import { HostBusinessPicker } from './HostBusinessPicker'
+import { PhotoGallery } from './PhotoGallery'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -238,6 +239,8 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
         </div>
       )}
       {hostBusinessError && <p className="mb-3 text-xs text-red-600">{hostBusinessError}</p>}
+
+      <PhotoGallery entityType="location" entityId={location.id} />
 
       {detail && (
         <dl className="mb-4 space-y-1 text-xs text-slate-600">

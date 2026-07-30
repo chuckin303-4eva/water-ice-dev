@@ -79,5 +79,12 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md). Also recalculates scores for locations within 10 miles of both the old and new position (ADR-0017) | Yes |
 | DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history). Also recalculates scores for every location within 10 miles (ADR-0017) | Yes |
 | GET | `/competitors/{id}/calendar-link` | Google Calendar + Outlook "add event" links for the competitor's `follow_up_at`. 409 if no follow-up date is set | Yes |
+| POST | `/locations/{id}/photos` | Upload a photo (`multipart/form-data`: `file`, optional `caption`, `is_primary`). Compressed and content-type-verified via Pillow; 422 if not a real image, wrong type, or over the 10 MB limit (ADR-0018) | Yes |
+| GET | `/locations/{id}/photos` | List a location's photos, primary first | Yes |
+| DELETE | `/locations/{id}/photos/{photo_id}` | Delete a photo (row + file) | Yes |
+| POST | `/competitors/{id}/photos` | Same as the location version, for a competitor (ADR-0018) | Yes |
+| GET | `/competitors/{id}/photos` | List a competitor's photos, primary first | Yes |
+| DELETE | `/competitors/{id}/photos/{photo_id}` | Delete a photo (row + file) | Yes |
+| GET | `/media/{entity_type}/{filename}` | Serves an uploaded photo. **Not authenticated** -- protected only by the unguessable UUID filename (ADR-0018) | No |
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.

@@ -1,5 +1,8 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes.auth import router as auth_router
 from app.api.routes.brands import router as brands_router
@@ -25,6 +28,12 @@ app.include_router(organizations_router)
 app.include_router(validation_queue_router)
 app.include_router(host_businesses_router)
 app.include_router(brands_router)
+
+# Photo uploads (ADR-0018) -- served directly, no auth, same tradeoff
+# already documented for this pre-public-facing app (ADR-0007): an
+# unguessable UUID filename, not real access control.
+os.makedirs(settings.upload_dir, exist_ok=True)
+app.mount("/media", StaticFiles(directory=settings.upload_dir), name="media")
 
 
 @app.get("/health")

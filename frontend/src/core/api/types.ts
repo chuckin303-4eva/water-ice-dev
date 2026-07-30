@@ -233,3 +233,16 @@ export interface CompetitorCalendarLinks {
   google: string
   outlook: string
 }
+
+export type PhotoEntityType = 'location' | 'competitor'
+
+export interface Photo {
+  id: string
+  entity_type: PhotoEntityType
+  entity_id: string
+  file_url: string
+  caption: string | null
+  uploaded_by: number
+  uploaded_at: string
+  is_primary: boolean
+}

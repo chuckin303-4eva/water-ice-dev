@@ -148,7 +148,8 @@ These attach to more than one entity type (a location, a host business, a compet
 `locations`, `host_businesses`, `competitors`, and `brands` all use UUID primary keys (ADR-0003), so `entity_id` here is always a UUID regardless of which of the four it points to — no per-entity-type casting needed.
 
 **photos**
-- `id` (PK), `entity_type`, `entity_id`, `file_key`, `caption`, `uploaded_by` (FK → users), `uploaded_at`, `is_primary` (bool)
+- `id` (PK), `entity_type`, `entity_id`, `file_url`, `caption`, `uploaded_by` (FK → users), `uploaded_at`, `is_primary` (bool)
+- **Implemented** (ADR-0018) — scoped to `entity_type` in `{location, competitor}` only (the two entities with a detail panel to upload from); `host_businesses`/`brands` stay unbuilt for this even though the polymorphic design would allow it. Renamed from the original design's `file_key` to `file_url`: stores an already-servable path (e.g. `/media/location/<uuid>.jpg`), not a raw storage key. Local disk storage under `settings.upload_dir`, served via a `StaticFiles` mount at `/media` -- unauthenticated, protected only by the unguessable UUID filename, not real access control (disclosed tradeoff, same class as ADR-0007's `localStorage` token decision). Uploads are compressed via Pillow (max 2048px, quality 85, EXIF stripped) and content-type-verified by attempting to decode them. `POST/GET /locations/{id}/photos` and `DELETE /locations/{id}/photos/{photo_id}`, mirrored under `/competitors`.
 
 **documents**
 - `id` (PK), `entity_type`, `entity_id`, `document_type` (`contract`/`permit`/`verification`/`other`), `file_key`, `organization_id` (FK, nullable — set when the document is a specific tenant's private paperwork, e.g. a host agreement, rather than shared reference material), `uploaded_by`, `uploaded_at`, `notes`

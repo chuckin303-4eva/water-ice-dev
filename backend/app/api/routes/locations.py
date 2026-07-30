@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -15,6 +15,7 @@ from app.api.schemas.location import (
     LocationSummary,
     LocationUpdateRequest,
 )
+from app.api.schemas.photo import PhotoResponse
 from app.api.schemas.validation import ValidationQueueResponse
 from app.core.models.user import User
 from app.db.session import get_db
@@ -23,8 +24,10 @@ from app.services import (
     csv_export_service,
     csv_import_service,
     geocoding_service,
+    image_processing,
     location_service,
     organization_service,
+    photo_service,
     scoring_service,
     validation_service,
 )
@@ -262,3 +265,64 @@ def get_calendar_link(
             title, note.follow_up_at, note.note_text, location.address
         ),
     )
+
+
+def _get_location_photo_or_404(db: Session, location_id: uuid.UUID, photo_id: uuid.UUID):
+    photo = photo_service.get_photo(db, photo_id)
+    if photo is None or photo.entity_type != "location" or photo.entity_id != location_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Photo not found")
+    return photo
+
+
+@router.post(
+    "/{location_id}/photos", response_model=PhotoResponse, status_code=status.HTTP_201_CREATED
+)
+async def upload_location_photo(
+    location_id: uuid.UUID,
+    file: UploadFile = File(...),
+    caption: str | None = Form(None),
+    is_primary: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PhotoResponse:
+    _get_location_or_404(db, location_id)
+    content = await file.read()
+    try:
+        photo = photo_service.upload_photo(
+            db,
+            "location",
+            location_id,
+            content,
+            file.content_type,
+            uploaded_by=current_user.id,
+            caption=caption,
+            is_primary=is_primary,
+        )
+    except photo_service.UnsupportedFileTypeError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except photo_service.FileTooLargeError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except image_processing.InvalidImageError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    return PhotoResponse.model_validate(photo)
+
+
+@router.get("/{location_id}/photos", response_model=list[PhotoResponse])
+def list_location_photos(
+    location_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[PhotoResponse]:
+    _get_location_or_404(db, location_id)
+    return [PhotoResponse.model_validate(p) for p in photo_service.list_photos(db, "location", location_id)]
+
+
+@router.delete("/{location_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_location_photo(
+    location_id: uuid.UUID,
+    photo_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    photo = _get_location_photo_or_404(db, location_id, photo_id)
+    photo_service.delete_photo(db, photo)

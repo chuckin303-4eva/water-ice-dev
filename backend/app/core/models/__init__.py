@@ -1,9 +1,9 @@
 """SQLAlchemy models for the core (industry-independent) platform.
 
-Photos, documents, reviews, opportunities, resource_listings, tasks,
-settings, and refresh_runs are designed in docs/DATABASE.md but
-intentionally not modeled yet -- they arrive with the migration for the
-phase that actually needs them.
+Documents, reviews, opportunities, resource_listings, tasks, settings,
+and refresh_runs are designed in docs/DATABASE.md but intentionally not
+modeled yet -- they arrive with the migration for the phase that
+actually needs them.
 """
 
 from app.core.models import associations  # noqa: F401
@@ -15,6 +15,7 @@ from app.core.models.location import Location  # noqa: F401
 from app.core.models.location_call_note import LocationCallNote  # noqa: F401
 from app.core.models.organization import Organization  # noqa: F401
 from app.core.models.permission import Permission  # noqa: F401
+from app.core.models.photo import Photo  # noqa: F401
 from app.core.models.role import Role  # noqa: F401
 from app.core.models.update_log import UpdateLog  # noqa: F401
 from app.core.models.user import User  # noqa: F401

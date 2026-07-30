@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE_URL
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL
 
 const TOKEN_STORAGE_KEY = 'water_ice_access_token'
 

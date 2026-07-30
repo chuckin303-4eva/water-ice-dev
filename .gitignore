@@ -35,3 +35,7 @@ coverage/
 # repo root in some local dev setups depending on browser download
 # defaults -- never intended to be committed.
 /*.csv
+
+# Uploaded photos -- local disk storage for now (ADR-0018). User-uploaded
+# content, not source; never committed.
+backend/uploads/

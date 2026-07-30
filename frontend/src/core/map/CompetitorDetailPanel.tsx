@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { competitorsApi } from '../api/competitors'
 import { ApiError } from '../api/client'
 import type { CompetitorCalendarLinks, CompetitorDetail, CompetitorSummary } from '../api/types'
+import { PhotoGallery } from './PhotoGallery'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
 
 interface Props {
@@ -115,6 +116,8 @@ export function CompetitorDetailPanel({ competitor, onClose, onChanged }: Props)
         </button>
       </div>
       <p className="mb-3 text-xs text-slate-500">{competitor.address}</p>
+
+      <PhotoGallery entityType="competitor" entityId={competitor.id} />
 
       {detail && !editing && (
         <dl className="mb-3 space-y-1 text-xs text-slate-600">
