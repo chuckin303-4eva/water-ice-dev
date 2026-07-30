@@ -106,7 +106,7 @@ Modeled as site-level records — a specific observed rival machine at a specifi
 - `population` — surrounding population figure. **Still unused** — no free demographic data source is wired (Market Refresh Engine, ADR-0004, Phase 3); deliberately excluded from the opportunity_score formula, not defaulted to zero.
 - `median_income` — "Income". Same status as `population`.
 - `growth_rate` — "Growth". Same status as `population`.
-- `competition_score` — **Implemented** (ADR-0009). Real-time distance-weighted density of nearby `competitors` rows (app-level haversine, no PostGIS per ADR-0002), snapshotted at last calculation.
+- `competition_score` — **Implemented** (ADR-0009), **refined** (ADR-0017). Real-time distance-weighted density of nearby `competitors` rows (app-level haversine, no PostGIS per ADR-0002), snapshotted at last calculation. Once a location has declared `serves_ice`/`serves_water`, only competitors sharing at least one of those capabilities count (opt-in narrowing, same rule as ADR-0010's filters); an unconfigured location (neither set) still counts everything nearby. Recalculated automatically whenever a nearby competitor is created, updated, or deleted (not just when the location itself changes) — see `scoring_service.recalculate_scores_near`.
 - `opportunity_score` — **Implemented** (ADR-0009). Composite of `visibility_rating` + `traffic_score` + `competition_score`; `null` until both manual ratings are set (no default-guessing).
 - `confidence_score` — **Implemented** (ADR-0009). Reflects how many of the two manual ratings are present (0/50/100), not the site's actual quality.
 - `status` (e.g. `prospect`, `active`, `inactive`, `lost`, `competitor_occupied`)

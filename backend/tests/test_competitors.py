@@ -251,3 +251,68 @@ def test_export_respects_brand_filter(client, test_user: User) -> None:
     response = client.get("/competitors/export?brand=twice", headers=headers)
     assert "Site A" in response.text
     assert "Site B" not in response.text
+
+
+def test_creating_competitor_recalculates_nearby_location_score(client, test_user: User) -> None:
+    """Opportunity scoring, refined (ADR-0017): a location's score
+    updates automatically when a nearby competitor is created, not just
+    when the location itself is edited or /recalculate-score is called.
+    """
+    headers = auth_headers(client, test_user)
+    location = client.post(
+        "/locations",
+        json={"address": "1 Main St, Denver, CO", "serves_ice": True, "visibility_rating": 8, "traffic_score": 8},
+        headers=headers,
+    ).json()
+    assert location["competition_score"] == 0.0
+
+    client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave, Denver, CO", "name": "Twice the Ice", "serves_ice": True},
+        headers=headers,
+    )
+
+    refreshed = client.get(f"/locations/{location['id']}", headers=headers).json()
+    assert refreshed["competition_score"] > 0
+    assert refreshed["opportunity_score"] < location["opportunity_score"]
+
+
+def test_deleting_competitor_recalculates_nearby_location_score(client, test_user: User) -> None:
+    headers = auth_headers(client, test_user)
+    location = client.post(
+        "/locations", json={"address": "1 Main St, Denver, CO", "serves_ice": True}, headers=headers
+    ).json()
+    competitor = client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave, Denver, CO", "name": "Twice the Ice", "serves_ice": True},
+        headers=headers,
+    ).json()
+    scored = client.get(f"/locations/{location['id']}", headers=headers).json()
+    assert scored["competition_score"] > 0
+
+    client.delete(f"/competitors/{competitor['id']}", headers=headers)
+
+    refreshed = client.get(f"/locations/{location['id']}", headers=headers).json()
+    assert refreshed["competition_score"] == 0.0
+
+
+def test_updating_competitor_product_type_recalculates_nearby_location_score(
+    client, test_user: User
+) -> None:
+    headers = auth_headers(client, test_user)
+    location = client.post(
+        "/locations", json={"address": "1 Main St, Denver, CO", "serves_ice": True}, headers=headers
+    ).json()
+    competitor = client.post(
+        "/competitors",
+        json={"address": "456 Rival Ave, Denver, CO", "name": "Rival", "serves_water": True},
+        headers=headers,
+    ).json()
+    # Water-only competitor doesn't count against an ice-only location.
+    unaffected = client.get(f"/locations/{location['id']}", headers=headers).json()
+    assert unaffected["competition_score"] == 0.0
+
+    client.put(f"/competitors/{competitor['id']}", json={"serves_ice": True}, headers=headers)
+
+    refreshed = client.get(f"/locations/{location['id']}", headers=headers).json()
+    assert refreshed["competition_score"] > 0

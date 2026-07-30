@@ -71,13 +71,13 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/locations/{id}/call-notes` | Add a prospecting call note, optional `follow_up_at` | Yes |
 | GET | `/locations/{id}/call-notes` | List call notes for a location | Yes |
 | GET | `/locations/{id}/call-notes/{note_id}/calendar-link` | Google Calendar + Outlook "add event" links for a note's `follow_up_at`. 409 if the note has no follow-up date | Yes |
-| POST | `/locations/{id}/recalculate-score` | Recompute `competition_score`/`opportunity_score`/`confidence_score` without changing any other field -- for when nearby `competitors` data changed instead of the location itself | Yes |
-| POST | `/competitors` | Create a competitor. Requires `name` plus `address`, or `latitude`+`longitude`, or both | Yes |
+| POST | `/locations/{id}/recalculate-score` | Recompute `competition_score`/`opportunity_score`/`confidence_score` without changing any other field -- for any residual case not already covered by the automatic recalculation below (ADR-0017) | Yes |
+| POST | `/competitors` | Create a competitor. Requires `name` plus `address`, or `latitude`+`longitude`, or both. Also recalculates scores for every location within 10 miles (ADR-0017) | Yes |
 | GET | `/competitors` | List competitors. Filters (ADR-0010): `?serves_ice=true`, `?serves_water=true` (same opt-in OR semantics as locations), `?brand=` (case-insensitive partial match) | Yes |
 | GET | `/competitors/export` | Download all competitors matching the same filters as `GET /competitors` as a CSV file, full field set (ADR-0013) | Yes |
 | GET | `/competitors/{id}` | Get a competitor | Yes |
-| PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md) | Yes |
-| DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history) | Yes |
+| PUT | `/competitors/{id}` | Update a competitor (partial; no `update_log` -- see docs/DATABASE.md). Also recalculates scores for locations within 10 miles of both the old and new position (ADR-0017) | Yes |
+| DELETE | `/competitors/{id}` | Permanently remove a competitor (hard delete, unlike locations' archive -- these are corrected/replaced freely, not an audited history). Also recalculates scores for every location within 10 miles (ADR-0017) | Yes |
 | GET | `/competitors/{id}/calendar-link` | Google Calendar + Outlook "add event" links for the competitor's `follow_up_at`. 409 if no follow-up date is set | Yes |
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.

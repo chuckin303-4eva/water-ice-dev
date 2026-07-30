@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.api.schemas.competitor import CompetitorCreateRequest, CompetitorResponse, CompetitorUpdateRequest
 from app.core.models.competitor import Competitor
 from app.core.models.geography import City, County, State
-from app.services import geocoding_service
+from app.services import geocoding_service, scoring_service
 from app.services.geography_service import resolve_geography
 
 
@@ -67,6 +67,7 @@ def create_competitor(db: Session, data: CompetitorCreateRequest) -> Competitor:
     db.add(competitor)
     db.commit()
     db.refresh(competitor)
+    scoring_service.recalculate_scores_near(db, float(competitor.latitude), float(competitor.longitude))
     return competitor
 
 
@@ -159,15 +160,24 @@ _UPDATABLE_FIELDS = (
 
 
 def update_competitor(db: Session, competitor: Competitor, data: CompetitorUpdateRequest) -> Competitor:
+    old_latitude, old_longitude = float(competitor.latitude), float(competitor.longitude)
     for field in _UPDATABLE_FIELDS:
         new_value = getattr(data, field)
         if new_value is not None:
             setattr(competitor, field, new_value)
     db.commit()
     db.refresh(competitor)
+    # Recalculate around both the old and new position -- a moved
+    # competitor can affect locations near where it used to be as well
+    # as where it is now (ADR-0017); harmless no-op overlap if it didn't
+    # move, since recalculate_scores is idempotent given current state.
+    scoring_service.recalculate_scores_near(db, old_latitude, old_longitude)
+    scoring_service.recalculate_scores_near(db, float(competitor.latitude), float(competitor.longitude))
     return competitor
 
 
 def delete_competitor(db: Session, competitor: Competitor) -> None:
+    latitude, longitude = float(competitor.latitude), float(competitor.longitude)
     db.delete(competitor)
     db.commit()
+    scoring_service.recalculate_scores_near(db, latitude, longitude)

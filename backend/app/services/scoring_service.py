@@ -1,4 +1,5 @@
-"""Basic scoring (Phase 1, item 6; ADR-0009).
+"""Basic scoring (Phase 1, item 6; ADR-0009) and its refinement
+(Phase 2, "Opportunity scoring (refined)"; ADR-0017).
 
 Computes three of the five score-shaped columns already on `locations`
 (designed in ADR-0003, unused until now):
@@ -7,6 +8,15 @@ Computes three of the five score-shaped columns already on `locations`
   rows in `competitors` near this location -- app-level haversine, no
   PostGIS, per ADR-0002. Works even with zero nearby competitors (score
   0 is a real, confident answer: "no visible competition here").
+  **Product-aware (ADR-0017)**: once a location has declared at least
+  one capability (serves_ice/serves_water), only competitors sharing at
+  least one of those capabilities count -- a water-only rival isn't
+  real competition for an ice-only site. Same opt-in-narrowing rule
+  already used for filters (ADR-0010): a location with neither
+  capability set yet (a brand-new, unconfigured prospect) still counts
+  every nearby competitor, unnarrowed, so a fresh prospect doesn't
+  silently score as "no competition" just because nobody has filled in
+  what it serves yet.
 - `opportunity_score`: real, but requires input. A composite of
   `competition_score` plus `visibility_rating` and `traffic_score` --
   both manually-entered 1-10 ratings (ADR-0009; these two columns
@@ -20,6 +30,15 @@ Computes three of the five score-shaped columns already on `locations`
 demographic data source has been wired (that's the Market Refresh
 Engine, ADR-0004, Phase 3). Leaving them out of the formula rather than
 defaulting them to zero, which would silently bias every score low.
+
+**Reactive recalculation (ADR-0017)**: `recalculate_scores_near` is
+called by `competitor_service` after every competitor create/update/
+delete, so a location's score doesn't go silently stale the way
+ADR-0009 originally accepted as a known limitation -- creating or
+moving a competitor near an already-scored location now updates that
+location automatically, not just on its own next edit or a manual
+`POST /locations/{id}/recalculate-score` call (which still exists for
+any residual edge case).
 """
 
 import math
@@ -43,11 +62,18 @@ def haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> float
     return 2 * EARTH_RADIUS_MILES * math.asin(math.sqrt(a))
 
 
-def calculate_competition_score(db: Session, latitude: float, longitude: float) -> float:
-    """0-100, higher = more nearby competition. Each competitor within
-    COMPETITION_RADIUS_MILES contributes 100/(1+distance) -- close
-    competitors weigh heavily, distant ones taper off -- summed and
-    capped at 100.
+def _shares_a_product(serves_ice: bool, serves_water: bool, competitor: Competitor) -> bool:
+    return (serves_ice and competitor.serves_ice) or (serves_water and competitor.serves_water)
+
+
+def calculate_competition_score(
+    db: Session, latitude: float, longitude: float, serves_ice: bool = False, serves_water: bool = False
+) -> float:
+    """0-100, higher = more nearby competition. Each qualifying
+    competitor within COMPETITION_RADIUS_MILES contributes
+    100/(1+distance) -- close competitors weigh heavily, distant ones
+    taper off -- summed and capped at 100. See module docstring for the
+    product-overlap narrowing rule.
     """
     # Coarse bounding box first (cheap, index-friendly per ADR-0002),
     # then exact haversine distance on the smaller candidate set.
@@ -61,8 +87,11 @@ def calculate_competition_score(db: Session, latitude: float, longitude: float) 
         .all()
     )
 
+    narrow_by_product = serves_ice or serves_water
     score = 0.0
     for competitor in candidates:
+        if narrow_by_product and not _shares_a_product(serves_ice, serves_water, competitor):
+            continue
         distance = haversine_miles(latitude, longitude, float(competitor.latitude), float(competitor.longitude))
         if distance <= COMPETITION_RADIUS_MILES:
             score += 100.0 / (1.0 + distance)
@@ -93,11 +122,14 @@ def calculate_confidence_score(visibility_rating: int | None, traffic_score: flo
 
 def recalculate_scores(db: Session, location: Location) -> None:
     """Recomputes and persists all three scores for one location.
-    Called after any create/update of the location itself, and
-    available standalone (POST /locations/{id}/recalculate-score) for
-    when nearby competitor data changed instead.
+    Called after any create/update of the location itself, after any
+    nearby competitor write (ADR-0017, via recalculate_scores_near),
+    and available standalone (POST /locations/{id}/recalculate-score)
+    for any residual edge case.
     """
-    competition_score = calculate_competition_score(db, float(location.latitude), float(location.longitude))
+    competition_score = calculate_competition_score(
+        db, float(location.latitude), float(location.longitude), location.serves_ice, location.serves_water
+    )
     opportunity_score = calculate_opportunity_score(
         location.visibility_rating, location.traffic_score, competition_score
     )
@@ -108,3 +140,26 @@ def recalculate_scores(db: Session, location: Location) -> None:
     location.confidence_score = confidence_score
     db.commit()
     db.refresh(location)
+
+
+def recalculate_scores_near(db: Session, latitude: float, longitude: float) -> None:
+    """Recomputes every location within COMPETITION_RADIUS_MILES of the
+    given point -- called after a competitor is created, updated, or
+    deleted (ADR-0017), since any of those can change a nearby
+    location's competition_score/opportunity_score. Same bounding-box
+    pre-filter as calculate_competition_score, just inverted (locations
+    near a competitor instead of competitors near a location).
+    """
+    degree_pad = COMPETITION_RADIUS_MILES / 69.0
+    candidates = (
+        db.query(Location)
+        .filter(
+            Location.latitude.between(latitude - degree_pad, latitude + degree_pad),
+            Location.longitude.between(longitude - degree_pad, longitude + degree_pad),
+        )
+        .all()
+    )
+    for location in candidates:
+        distance = haversine_miles(latitude, longitude, float(location.latitude), float(location.longitude))
+        if distance <= COMPETITION_RADIUS_MILES:
+            recalculate_scores(db, location)
