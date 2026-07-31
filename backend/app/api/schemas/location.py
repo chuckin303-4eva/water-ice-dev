@@ -101,6 +101,13 @@ class LocationUpdateRequest(BaseModel):
     pricing_estimate_notes: str | None = None
     notes: str | None = None
 
+    # Refresh-engine-populated only (ADR-0020) -- no manual-entry UI for
+    # these exists; a human could still PUT them directly via the API,
+    # but nothing in the product prompts for that today.
+    population: int | None = None
+    median_income: float | None = None
+    growth_rate: float | None = None
+
 
 class LocationResponse(BaseModel):
     id: uuid.UUID
@@ -148,6 +155,12 @@ class LocationResponse(BaseModel):
     pricing_estimate_monthly: float | None
     pricing_estimate_notes: str | None
     notes: str | None
+
+    population: int | None
+    median_income: float | None
+    growth_rate: float | None
+    last_verified_at: datetime | None
+    verification_source: str | None
 
     created_at: datetime
     updated_at: datetime

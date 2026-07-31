@@ -1,6 +1,7 @@
 import { Navigate, NavLink, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { AdminDashboardPage } from './core/admin/AdminDashboardPage'
 import { BillingPage } from './core/admin/BillingPage'
+import { RefreshPage } from './core/admin/RefreshPage'
 import { ReviewQueuePage } from './core/admin/ReviewQueuePage'
 import { AuthProvider, useAuth } from './core/auth/AuthContext'
 import { LoginPage } from './core/auth/LoginPage'
@@ -43,8 +44,11 @@ function AppShell() {
                 <NavLink to="/admin/review" end className="text-sm text-slate-500 hover:text-slate-800">
                   Review
                 </NavLink>
-                <NavLink to="/admin/billing" className="text-sm text-slate-500 hover:text-slate-800">
+                <NavLink to="/admin/billing" end className="text-sm text-slate-500 hover:text-slate-800">
                   Billing
+                </NavLink>
+                <NavLink to="/admin/refresh" className="text-sm text-slate-500 hover:text-slate-800">
+                  Refresh
                 </NavLink>
               </>
             )}
@@ -95,6 +99,16 @@ function AppShell() {
               <RequireAuth>
                 <RequireAdmin>
                   <BillingPage />
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin/refresh"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <RefreshPage />
                 </RequireAdmin>
               </RequireAuth>
             }

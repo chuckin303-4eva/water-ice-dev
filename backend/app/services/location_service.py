@@ -57,6 +57,9 @@ _UPDATABLE_FIELDS = (
     "pricing_estimate_monthly",
     "pricing_estimate_notes",
     "notes",
+    "population",
+    "median_income",
+    "growth_rate",
 )
 
 
@@ -257,14 +260,29 @@ def assemble_response(db: Session, location: Location) -> LocationResponse:
         else None,
         pricing_estimate_notes=location.pricing_estimate_notes,
         notes=location.notes,
+        population=location.population,
+        median_income=float(location.median_income) if location.median_income is not None else None,
+        growth_rate=float(location.growth_rate) if location.growth_rate is not None else None,
+        last_verified_at=location.last_verified_at,
+        verification_source=location.verification_source,
         created_at=location.created_at,
         updated_at=location.updated_at,
     )
 
 
 def update_location(
-    db: Session, location: Location, data: LocationUpdateRequest, updated_by: int
+    db: Session,
+    location: Location,
+    data: LocationUpdateRequest,
+    updated_by: int | None,
+    change_source: str = "manual",
 ) -> Location:
+    """`updated_by`/`change_source` are widened beyond the original
+    human-write case to support the Market Refresh Engine (ADR-0020),
+    which proposes updates with no specific user attached -- approving
+    one of those replays this same function with `updated_by=None,
+    change_source="verification"` so `update_log` records it honestly.
+    """
     _validate_host_business(db, data.host_business_id)
     _validate_brand(db, data.brand_id)
     for field in _UPDATABLE_FIELDS:
@@ -273,7 +291,7 @@ def update_location(
             continue
         old_value = getattr(location, field)
         if new_value != old_value:
-            _log_change(db, location.id, field, old_value, new_value, updated_by)
+            _log_change(db, location.id, field, old_value, new_value, updated_by, change_source)
             setattr(location, field, new_value)
     db.commit()
     db.refresh(location)

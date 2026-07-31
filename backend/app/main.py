@@ -10,6 +10,7 @@ from app.api.routes.brands import router as brands_router
 from app.api.routes.competitors import router as competitors_router
 from app.api.routes.host_businesses import router as host_businesses_router
 from app.api.routes.locations import router as locations_router
+from app.api.routes.market_refresh import router as market_refresh_router
 from app.api.routes.organizations import router as organizations_router
 from app.api.routes.validation_queue import router as validation_queue_router
 from app.core.config import settings
@@ -30,6 +31,7 @@ app.include_router(validation_queue_router)
 app.include_router(host_businesses_router)
 app.include_router(brands_router)
 app.include_router(billing_router)
+app.include_router(market_refresh_router)
 
 # Photo uploads (ADR-0018) -- served directly, no auth, same tradeoff
 # already documented for this pre-public-facing app (ADR-0007): an

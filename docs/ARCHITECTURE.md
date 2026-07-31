@@ -76,7 +76,7 @@ Resource pooling (parts stocking, skilled labor) is explicitly a **cross-tenant,
 - Core needs an access-control layer distinguishing tenant-private data (own locations, notes, reports) from intentionally cross-tenant-visible data (resource listings, and the shared market/location intelligence itself).
 - Resource pooling is industry-agnostic (parts and labor needs aren't ice/water-specific), so it lives in core, not in the ice_vending/water_vending modules.
 
-## Market Refresh Engine (ADR-0004)
+## Market Refresh Engine (ADR-0004, implemented ADR-0020)
 
 A "Refresh Market" action re-checks existing `locations` against external data sources and proposes changes — it never writes directly to master data.
 
@@ -84,43 +84,48 @@ A "Refresh Market" action re-checks existing `locations` against external data s
 Refresh → Compare → Create Validation Queue entries → Human approval → Update locations → Write update_log
 ```
 
-This maps directly onto existing tables: `locations` is the master data, `validation_queue` holds proposed changes awaiting a human decision, `update_log` is the permanent change record. One new table, `refresh_runs`, tracks each invocation (see [DATABASE.md](DATABASE.md)).
+This maps directly onto existing tables: `locations` is the master data, `validation_queue` holds proposed changes awaiting a human decision, `update_log` is the permanent change record. `refresh_runs` tracks each invocation (see [DATABASE.md](DATABASE.md)).
 
 **Provider interface** — every external data source is a replaceable module behind one interface, so adding, removing, or swapping a source never touches the comparison/queue/approval logic:
 
 ```python
-# backend/app/core/market_refresh/providers.py
+# backend/app/services/market_refresh_providers.py
 class MarketDataProvider(Protocol):
     slug: str
     is_free: bool
-    def check_location(self, location: LocationSnapshot) -> list[FieldObservation]: ...
+    def check_location(self, snapshot: LocationSnapshot) -> list[FieldObservation]: ...
 
 class FieldObservation(NamedTuple):
     field_name: str
-    observed_value: Any
+    observed_value: object
     confidence: float
     source: str        # provider slug, recorded on the validation_queue/update_log row
     observed_at: datetime
 ```
 
-**v1 providers (all free, all enabled by default):**
-- **OpenStreetMap / Overpass API** — business closed (POI removed/tagged disused), business moved (coordinates shifted beyond a threshold), address changed, host business tag changed, new competitor POIs (same amenity/shop tag) within radius of a location.
-- **US Census API** — population, median income, growth rate for a location's tract/block group.
-- **USGS / NOAA** — registered as available provider slots but not wired into any check yet; neither has an obvious mapping to the detections requested (closed/moved/rating/reviews/photos/duplicates). Left unbuilt rather than force-fit into a check that doesn't need them — add a concrete adapter only when a specific use (e.g., flood-zone or elevation as a scoring factor) is defined.
-- **Duplicate detection** is a separate comparison pass, not a provider: locations within a bounding box of each other are fuzzy-matched on name + address; matches above a threshold create a `validation_queue` entry (`entity_type = "location_duplicate"`).
+**v1 providers, as actually shipped (ADR-0020 narrowed this from the original sketch below):**
+- **OpenStreetMap** — address drift only, via the same Nominatim reverse-geocoding already used elsewhere in this app. Business-closed, business-moved, new-competitor-POI, and host-tag-changed detection were all dropped for v1 — see "Deferred from the original design" below.
+- **US Census** — population and median household income (ACS 5-Year Estimates), plus a derived `growth_rate` (percent change in population between two ACS5 vintages five years apart, not a single Census field). The Geocoder half (coordinates → tract) is keyless; the ACS5 data half requires a free `CENSUS_API_KEY` (signup at https://api.census.gov/data/key_signup.html) — discovered against the real API, not assumed. If the key is unset, `CensusProvider` is skipped for every location (not an error).
 
-**Rating, review-count, and photo-changed detection is deferred, not built.** No free source in this list carries ratings/reviews/photos — that data lives behind paid APIs (Google Places, Yelp Fusion). Per your paid-API policy and current no-cost constraint, this ships later as its own decision (a new provider module plus an explicit config flag, API key via environment variable, and a recorded justification in DECISIONS.md) — not as part of v1.
+**Deferred from the original design, with reasons (ADR-0020):**
+- **New-competitor-POI detection (Overpass)** — dropped. ADR-0008 already researched this directly and found OSM has essentially no tagging coverage for ice/water vending machines; building this would be a known near-zero-yield feature, not a hedge against a hypothetical.
+- **Business closed/moved, host-tag-changed detection** — dropped. Both need a stable OSM node ID captured at location-creation time to track one specific POI across refreshes, which the schema doesn't have. Deferred pending that groundwork, not built as a guess.
+- **Duplicate-location detection** — dropped. "Flag this as a possible duplicate" has no defined resolution/merge workflow on the validation-queue or location model; shipping the flag with no way to act on it would be a half-built feature.
+- **USGS / NOAA** — never had an obvious mapping to any of the checks above; still unbuilt, add a concrete adapter only when a specific use is defined.
+- **Rating, review-count, and photo-changed detection** — still deferred; no free source carries this data (Google Places/Yelp Fusion are paid), unchanged from the original assessment.
 
-**Paid-API gating (policy, operationalized):** a provider with `is_free = False` is disabled unless (1) free sources are confirmed unable to supply the data, (2) enabling it is a recorded decision (new ADR) stating why the benefit justifies the cost, (3) its API key comes from an environment variable and is never committed (per [SECURITY.md](SECURITY.md)). "Benefit exceeds cost" is a business judgment the code cannot verify — the gate is the recorded human decision, not an automated check.
+**Paid-API gating (policy, unchanged):** a provider with `is_free = False` stays disabled unless (1) free sources are confirmed unable to supply the data, (2) enabling it is a recorded decision (new ADR) stating why the benefit justifies the cost, (3) its API key comes from an environment variable and is never committed (per [SECURITY.md](SECURITY.md)). Both shipped v1 providers are free — the Census key is a free registration, not a paid API, so this gate hasn't been triggered yet.
 
-**Confidence score:** starts from a fixed per-source reliability weight (government/official sources score higher than community-maintained ones), adjusted up when a second provider independently reports the same value and down on disagreement. Kept deliberately simple for v1 — refine once real refresh data shows where it's wrong, not before.
+**Proposal shape:** one combined `validation_queue` entry per location per run, not one per changed field — every `FieldObservation` from every provider for a given location merges into a single proposal with a combined `reason` string, so a reviewer sees one card per location instead of a flood of near-duplicate cards.
 
-**Execution model:** an in-process, rate-limited asyncio task (no new infrastructure — no Redis, no job queue), started by `POST /market-refresh/run` and tracked in `refresh_runs` for progress polling. If the process restarts mid-run, that run is marked incomplete and simply re-triggered — an acceptable trade for a manually-triggered, non-critical-path job at this stage, chosen specifically to avoid adding an always-on infrastructure cost before there's a validated need for one. Runs process locations in batches (oldest `last_verified_at` first) rather than all 100,000+ at once, both to respect free-API rate limits (Overpass's public instance in particular is aggressively throttled) and to keep individual runs finishing in a reasonable time.
+**System-sourced proposals and approval:** a refresh's proposals have `submitted_by = NULL` (no human submitter), which `validation_service.list_queue()` and the approve/reject routes treat as visible to and actionable by every organization's admin — this data is shared platform-wide (ADR-0002), not one tenant's private submission. Approving one uses a new `update_log.change_source = "verification"` (alongside `manual`/`import`/`system`) instead of `"manual"`, so the audit trail honestly reflects how the change was discovered.
 
-**Endpoints (sketch):**
-- `POST /market-refresh/run` — start a run
-- `GET /market-refresh/runs/{id}` — status/progress
-- `GET /validation-queue` — list pending proposed changes
+**Execution model:** synchronous, triggered by an admin clicking a button — no background job queue or scheduler, matching the original no-new-infrastructure decision. A run processes up to `MAX_LOCATIONS_PER_RUN` (20) locations, oldest/never-checked (`last_verified_at`) first, and can take up to roughly a minute; the frontend button disables itself and labels accordingly rather than pretending it's instant. Every location touched gets `last_verified_at`/`verification_source` updated regardless of whether any drift was found, so "never checked" locations naturally rotate to the front of the next run.
+
+**Endpoints, as actually shipped:**
+- `POST /market-refresh/runs` — admin-only, runs synchronously, returns the completed `RefreshRun` summary
+- `GET /market-refresh/runs` — admin-only, run history
+- `GET /validation-queue` — list pending proposed changes (own org's + all system-sourced)
 - `POST /validation-queue/{id}/approve` — applies `proposed_changes` to the target entity, writes `update_log` rows, marks the queue entry approved
 - `POST /validation-queue/{id}/reject` — marks rejected, no changes applied
 

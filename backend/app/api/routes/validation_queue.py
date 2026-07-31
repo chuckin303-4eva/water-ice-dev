@@ -15,9 +15,15 @@ def _get_entry_or_404(db: Session, entry_id: int, organization_id: int):
     entry = validation_service.get_queue_entry(db, entry_id)
     if entry is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
-    submitted_by_user = db.get(User, entry.submitted_by) if entry.submitted_by is not None else None
-    if submitted_by_user is None or submitted_by_user.organization_id != organization_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+    # A system-sourced entry (submitted_by is None -- the Market Refresh
+    # Engine, ADR-0020) isn't tied to any one org's submitter, and is
+    # about shared, platform-wide location data (ADR-0002), so every
+    # org's admin can act on it. Only a *user*-submitted entry needs the
+    # cross-org 404 check.
+    if entry.submitted_by is not None:
+        submitted_by_user = db.get(User, entry.submitted_by)
+        if submitted_by_user is None or submitted_by_user.organization_id != organization_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
     return entry
 
 
@@ -38,8 +44,14 @@ def approve(
     current_user: User = Depends(require_admin),
 ) -> LocationResponse:
     entry = _get_entry_or_404(db, entry_id, current_user.organization_id)
+    # A system-sourced entry was discovered by re-checking the location
+    # against an external source, not manually edited -- update_log
+    # should say so (ADR-0020).
+    change_source = "verification" if entry.submitted_by is None else "manual"
     try:
-        location = validation_service.approve(db, entry, reviewer_id=current_user.id)
+        location = validation_service.approve(
+            db, entry, reviewer_id=current_user.id, change_source=change_source
+        )
     except validation_service.AlreadyReviewedError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except validation_service.ValidationQueueNotFoundError as exc:

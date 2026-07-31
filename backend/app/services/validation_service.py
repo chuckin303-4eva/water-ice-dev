@@ -16,6 +16,7 @@ change to whoever proposed it, not whoever clicked approve.
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.api.schemas.location import LocationCreateRequest, LocationUpdateRequest
@@ -53,8 +54,18 @@ def propose_create_location(
 
 
 def propose_update_location(
-    db: Session, location_id: uuid.UUID, data: LocationUpdateRequest, submitted_by: int
+    db: Session,
+    location_id: uuid.UUID,
+    data: LocationUpdateRequest,
+    submitted_by: int | None,
+    reason: str | None = None,
 ) -> ValidationQueue:
+    """`submitted_by=None` means a system-sourced proposal (the Market
+    Refresh Engine, ADR-0020) rather than a specific user's edit --
+    `reason` carries the provider's own explanation (e.g. "OpenStreetMap:
+    address may have changed") for a reviewer, distinct from the
+    rejection-reason use of this same column.
+    """
     # Only the fields actually being changed, not every unset field --
     # keeps the diff shown to a reviewer meaningful.
     changes = data.model_dump(mode="json", exclude_none=True)
@@ -62,6 +73,7 @@ def propose_update_location(
         entity_type=_ENTITY_TYPE,
         entity_id=str(location_id),
         proposed_changes=changes,
+        reason=reason,
         submitted_by=submitted_by,
         status="pending",
     )
@@ -96,17 +108,34 @@ def assemble_response(db: Session, entry: ValidationQueue) -> ValidationQueueRes
 
 
 def list_queue(db: Session, organization_id: int, status: str | None = "pending") -> list[ValidationQueue]:
+    """A system-sourced entry (`submitted_by IS NULL`, e.g. from the
+    Market Refresh Engine, ADR-0020) has no submitting user to scope by
+    organization -- and unlike a member's own submission, it's about
+    shared, platform-wide location data (ADR-0002), not one tenant's
+    private write. So it's surfaced to every organization's admins,
+    alongside that org's own member-submitted entries. Uses an outer
+    join (not the inner join this originally had) specifically so those
+    NULL-submitter rows survive the join instead of being silently
+    dropped.
+    """
     query = (
         db.query(ValidationQueue)
-        .join(User, User.id == ValidationQueue.submitted_by)
-        .filter(User.organization_id == organization_id)
+        .outerjoin(User, User.id == ValidationQueue.submitted_by)
+        .filter(or_(ValidationQueue.submitted_by.is_(None), User.organization_id == organization_id))
     )
     if status is not None:
         query = query.filter(ValidationQueue.status == status)
     return query.order_by(ValidationQueue.created_at).all()
 
 
-def approve(db: Session, entry: ValidationQueue, reviewer_id: int) -> Location:
+def approve(
+    db: Session, entry: ValidationQueue, reviewer_id: int, change_source: str = "manual"
+) -> Location:
+    """`change_source` lets the Market Refresh Engine (ADR-0020) approve
+    its own proposals with `change_source="verification"` so `update_log`
+    reflects how the change was actually discovered, rather than every
+    validation-queue approval reading as a plain "manual" edit.
+    """
     if entry.status != "pending":
         raise AlreadyReviewedError(f"This submission was already {entry.status}")
 
@@ -121,7 +150,9 @@ def approve(db: Session, entry: ValidationQueue, reviewer_id: int) -> Location:
             raise ValidationQueueNotFoundError(
                 f"Location {entry.entity_id} no longer exists"
             )
-        location = location_service.update_location(db, location, data, updated_by=submitted_by)
+        location = location_service.update_location(
+            db, location, data, updated_by=submitted_by, change_source=change_source
+        )
 
     entry.status = "approved"
     entry.reviewed_by = reviewer_id

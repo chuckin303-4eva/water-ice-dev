@@ -48,8 +48,8 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | PUT | `/organizations/users/{user_id}` | Update a teammate's `is_active` and/or `role` (admin only). Rejects modifying your own account (400) | Yes (admin) |
 | GET | `/organizations/settings` | Get `{require_review_for_submissions}` for your organization (ADR-0014) | Yes |
 | PUT | `/organizations/settings` | Set `require_review_for_submissions` for your organization (admin only) | Yes (admin) |
-| GET | `/validation-queue` | List your organization's queued submissions (admin only). `?status_filter=pending` by default; pass `status_filter=` (empty) or another status to see approved/rejected entries too (ADR-0014) | Yes (admin) |
-| POST | `/validation-queue/{id}/approve` | Approve a queued submission -- applies it (as the original submitter, for `update_log` attribution) and returns the resulting `LocationResponse`. 409 if already reviewed | Yes (admin) |
+| GET | `/validation-queue` | List your organization's queued submissions, plus every system-sourced entry (no submitting user, e.g. from Market Refresh -- ADR-0020) since those concern shared platform-wide location data, not one tenant's private submission. `?status_filter=pending` by default; pass `status_filter=` (empty) or another status to see approved/rejected entries too (ADR-0014) | Yes (admin) |
+| POST | `/validation-queue/{id}/approve` | Approve a queued submission -- applies it (as the original submitter, for `update_log` attribution; `change_source="verification"` instead of `"manual"` for a system-sourced entry) and returns the resulting `LocationResponse`. 409 if already reviewed | Yes (admin) |
 | POST | `/validation-queue/{id}/reject` | Reject a queued submission with an optional `reason`. 409 if already reviewed | Yes (admin) |
 | POST | `/host-businesses` | Create a host business (name required; category/phone/website optional) (ADR-0015) | Yes |
 | GET | `/host-businesses` | List host businesses. `?search=` matches name or category, case-insensitive partial -- powers the location detail panel's search-or-create picker | Yes |
@@ -91,5 +91,9 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | POST | `/billing/subscribe` | Subscribe or switch to a paid plan (`{plan_slug}`). Backed by a mock provider -- no real payment is collected. 422 for an unknown plan or `plan_slug: "free"` (use cancel instead) | Yes (admin) |
 | POST | `/billing/cancel` | Cancel the current paid subscription immediately, reverting to the free plan. 409 if nothing is active | Yes (admin) |
 | GET | `/billing/invoices` | List billing history for your organization, newest first (ADR-0019) | Yes (admin) |
+| POST | `/market-refresh/runs` | Trigger a Market Refresh run: re-checks up to 20 locations (oldest/never-checked first) against OpenStreetMap (address drift) and US Census (demographics), queuing one combined `validation_queue` proposal per location with any drift. Synchronous -- can take up to ~a minute. Never writes to `locations` directly (ADR-0020) | Yes (admin) |
+| GET | `/market-refresh/runs` | List past refresh runs, newest first | Yes (admin) |
+
+`PUT /locations/{id}` also accepts `population`/`median_income`/`growth_rate` (ADR-0020) -- these exist for the Market Refresh Engine's approved proposals to write through; no manual-entry UI prompts for them today, though a human could still set them directly via this endpoint.
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.

@@ -45,6 +45,11 @@ export interface LocationDetail extends LocationSummary {
   pricing_estimate_monthly: number | null
   pricing_estimate_notes: string | null
   notes: string | null
+  population: number | null
+  median_income: number | null
+  growth_rate: number | null
+  last_verified_at: string | null
+  verification_source: string | null
   created_at: string
   updated_at: string
 }
@@ -271,4 +276,15 @@ export interface Invoice {
   period_start: string
   period_end: string
   issued_at: string
+}
+
+export interface RefreshRun {
+  id: number
+  started_at: string
+  completed_at: string | null
+  status: string
+  locations_reviewed: number
+  changes_queued: number
+  providers_used: string[]
+  error_message: string | null
 }

@@ -270,6 +270,29 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
               <dd className="inline">${detail.pricing_estimate_monthly}</dd>
             </div>
           )}
+          {(detail.population != null || detail.median_income != null || detail.growth_rate != null) && (
+            <div>
+              <dt className="inline font-medium">Demographics: </dt>
+              <dd className="inline">
+                {[
+                  detail.population != null && `Pop. ${detail.population.toLocaleString()}`,
+                  detail.median_income != null && `Median income $${detail.median_income.toLocaleString()}`,
+                  detail.growth_rate != null && `${detail.growth_rate > 0 ? '+' : ''}${detail.growth_rate}% growth`,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </dd>
+            </div>
+          )}
+          {detail.last_verified_at && (
+            <div>
+              <dt className="inline font-medium">Last verified: </dt>
+              <dd className="inline">
+                {new Date(detail.last_verified_at).toLocaleDateString()}
+                {detail.verification_source ? ` (${detail.verification_source})` : ''}
+              </dd>
+            </div>
+          )}
         </dl>
       )}
 

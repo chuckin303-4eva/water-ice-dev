@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     upload_dir: str = "uploads"
     max_upload_size_bytes: int = 10 * 1024 * 1024
 
+    # Market Refresh Engine (ADR-0020): the Census Geocoder is keyless, but
+    # the ACS5 data API 302-redirects to an error page without one. Free to
+    # obtain at https://api.census.gov/data/key_signup.html; the Census
+    # provider is skipped (not an error) when this is unset -- see
+    # census_service.get_demographics.
+    census_api_key: str | None = None
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
