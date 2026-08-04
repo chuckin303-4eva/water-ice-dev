@@ -3,6 +3,7 @@ import { AdminDashboardPage } from './core/admin/AdminDashboardPage'
 import { BillingPage } from './core/admin/BillingPage'
 import { RefreshPage } from './core/admin/RefreshPage'
 import { ReviewQueuePage } from './core/admin/ReviewQueuePage'
+import { AnalyticsPage } from './core/analytics/AnalyticsPage'
 import { AuthProvider, useAuth } from './core/auth/AuthContext'
 import { LoginPage } from './core/auth/LoginPage'
 import { RegisterPage } from './core/auth/RegisterPage'
@@ -35,6 +36,9 @@ function AppShell() {
             <h1 className="text-sm font-semibold text-slate-900">Ice &amp; Water Intelligence</h1>
             <NavLink to="/" end className="text-sm text-slate-500 hover:text-slate-800">
               Map
+            </NavLink>
+            <NavLink to="/analytics" className="text-sm text-slate-500 hover:text-slate-800">
+              Analytics
             </NavLink>
             {currentUser?.role === 'admin' && (
               <>
@@ -70,6 +74,14 @@ function AppShell() {
             element={
               <RequireAuth>
                 <MapView />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <RequireAuth>
+                <AnalyticsPage />
               </RequireAuth>
             }
           />

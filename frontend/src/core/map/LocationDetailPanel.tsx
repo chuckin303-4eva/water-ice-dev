@@ -1,10 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { locationsApi } from '../api/locations'
+import { opportunitiesApi } from '../api/opportunities'
 import { ApiError } from '../api/client'
-import { isPendingReview, type CallNote, type HostBusiness, type LocationDetail, type LocationSummary } from '../api/types'
+import {
+  isPendingReview,
+  type CallNote,
+  type HostBusiness,
+  type LocationDetail,
+  type LocationSummary,
+  type Opportunity,
+  type OpportunityStage,
+} from '../api/types'
 import { HostBusinessPicker } from './HostBusinessPicker'
 import { PhotoGallery } from './PhotoGallery'
 import { useStopMapClickPropagation } from './useStopMapClickPropagation'
+
+const OPPORTUNITY_STAGES: OpportunityStage[] = ['identified', 'contacted', 'negotiating', 'won', 'lost']
 
 interface Props {
   location: LocationSummary
@@ -25,11 +36,14 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
   const [queuedMessage, setQueuedMessage] = useState<string | null>(null)
   const [editingHostBusiness, setEditingHostBusiness] = useState(false)
   const [hostBusinessError, setHostBusinessError] = useState<string | null>(null)
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null)
+  const [opportunityError, setOpportunityError] = useState<string | null>(null)
   const panelRef = useStopMapClickPropagation<HTMLDivElement>()
 
   useEffect(() => {
     setDetail(null)
     setNotes([])
+    setOpportunity(null)
     locationsApi
       .get(location.id)
       .then((d) => {
@@ -39,7 +53,32 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
       })
       .catch(() => setError('Could not load details'))
     locationsApi.listCallNotes(location.id).then(setNotes).catch(() => undefined)
+    opportunitiesApi
+      .list(location.id)
+      .then((opportunities) => setOpportunity(opportunities[0] ?? null))
+      .catch(() => undefined)
   }, [location.id])
+
+  async function handleStartPursuit() {
+    setOpportunityError(null)
+    try {
+      const created = await opportunitiesApi.create({ location_id: location.id })
+      setOpportunity(created)
+    } catch (err) {
+      setOpportunityError(err instanceof ApiError ? err.message : 'Could not start pursuit')
+    }
+  }
+
+  async function handleStageChange(stage: OpportunityStage) {
+    if (!opportunity) return
+    setOpportunityError(null)
+    try {
+      const updated = await opportunitiesApi.update(opportunity.id, { stage })
+      setOpportunity(updated)
+    } catch (err) {
+      setOpportunityError(err instanceof ApiError ? err.message : 'Could not update stage')
+    }
+  }
 
   async function handleSaveRatings(event: FormEvent) {
     event.preventDefault()
@@ -239,6 +278,32 @@ export function LocationDetailPanel({ location, onClose, onChanged }: Props) {
         </div>
       )}
       {hostBusinessError && <p className="mb-3 text-xs text-red-600">{hostBusinessError}</p>}
+
+      {detail && (
+        <div className="mb-3 rounded border border-slate-100 bg-slate-50 p-2 text-xs text-slate-600">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold text-slate-700">Pursuit</span>
+          </div>
+          {opportunity ? (
+            <select
+              value={opportunity.stage}
+              onChange={(e) => handleStageChange(e.target.value as OpportunityStage)}
+              className="w-full rounded border border-slate-300 px-2 py-1 capitalize"
+            >
+              {OPPORTUNITY_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {stage}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <button type="button" onClick={handleStartPursuit} className="text-blue-600 underline">
+              Start pursuing this location
+            </button>
+          )}
+          {opportunityError && <p className="mt-1 text-red-600">{opportunityError}</p>}
+        </div>
+      )}
 
       <PhotoGallery entityType="location" entityId={location.id} />
 

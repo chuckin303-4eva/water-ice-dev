@@ -288,3 +288,56 @@ export interface RefreshRun {
   providers_used: string[]
   error_message: string | null
 }
+
+export type OpportunityStage = 'identified' | 'contacted' | 'negotiating' | 'won' | 'lost'
+
+export interface Opportunity {
+  id: string
+  location_id: string
+  location_address: string
+  organization_id: number
+  stage: OpportunityStage
+  assigned_user_id: number | null
+  assigned_user_email: string | null
+  priority: string | null
+  target_action_date: string | null
+  outcome_notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateOpportunityInput {
+  location_id: string
+  stage?: OpportunityStage
+}
+
+export interface UpdateOpportunityInput {
+  stage?: OpportunityStage
+  priority?: string
+  outcome_notes?: string
+}
+
+export interface LocationSummaryRow {
+  id: string
+  address: string
+  city_name: string
+  state_code: string
+  opportunity_score: number | null
+  competition_score: number | null
+  growth_rate: number | null
+  population: number | null
+}
+
+export interface AnalyticsSummary {
+  total_locations: number
+  status_breakdown: Record<string, number>
+  average_opportunity_score: number | null
+  unscored_count: number
+  score_buckets: Record<string, number>
+  top_prospects: LocationSummaryRow[]
+  growth_markets: LocationSummaryRow[]
+  total_competitors: number
+  average_competition_score: number | null
+  most_contested_markets: LocationSummaryRow[]
+  pipeline_funnel: Record<OpportunityStage, number>
+}

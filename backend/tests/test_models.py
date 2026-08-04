@@ -39,5 +39,6 @@ def test_all_phase1_tables_are_created() -> None:
         "subscriptions",
         "invoices",
         "refresh_runs",
+        "opportunities",
     }
     assert expected.issubset(table_names)

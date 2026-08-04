@@ -138,8 +138,9 @@ Property ownership fields above stay manual indefinitely too — confirmed no fr
 
 A location's `opportunity_score` is a computed metric; `opportunities` is the human workflow layer on top of it — tracking who is actually pursuing a given location and how far along they are. Keeping these separate avoids conflating "how good is this site, generically" with "what's the status of our specific pursuit of it."
 
-**opportunities**
-- `id` (PK), `location_id` (FK → locations, indexed), `organization_id` (FK → organizations, indexed — who's pursuing it), `stage` (`identified`/`contacted`/`negotiating`/`won`/`lost`), `assigned_user_id` (FK → users, nullable), `priority`, `target_action_date`, `outcome_notes`, `created_at`, `updated_at`
+**opportunities** — **Implemented** (ADR-0003 design, ADR-0021 implementation). Designed alongside the rest of the schema but never actually built in Phase 1/2/3 -- unlike `host_businesses`/`brands`/`photos` (same gap, closed in ADR-0015/0016/0018), it had never been a numbered roadmap item at all until Advanced Analytics needed real pipeline data to analyze.
+- `id` (PK, UUID), `location_id` (FK → locations, indexed), `organization_id` (FK → organizations, indexed — who's pursuing it; the same location can be pursued independently by more than one org, since `locations` itself is shared platform-wide data, ADR-0002), `stage` (`identified`/`contacted`/`negotiating`/`won`/`lost`), `assigned_user_id` (FK → users, nullable, validated against the caller's own org), `priority`, `target_action_date`, `outcome_notes`, `created_at`, `updated_at`
+- `POST/GET/PUT/DELETE /opportunities` (open to any authenticated org member, not admin-gated -- this is working data, not billing-sensitive); listing/get/update/delete are all scoped to the caller's own organization (cross-org access 404s).
 
 ## Attachments: Photos, Documents, Reviews
 

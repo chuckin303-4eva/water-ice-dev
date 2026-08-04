@@ -36,7 +36,7 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | Opportunity scoring (refined) | High | Done (ADR-0017). Two gaps ADR-0009 explicitly deferred, now fixed: `competition_score` only counts competitors sharing a product the location has actually declared (opt-in narrowing, same rule as ADR-0010's filters -- an unconfigured location still counts everything, preserving the original "0 is a confident answer" guarantee), and competitor create/update/delete now automatically recalculate every location within the scoring radius instead of only refreshing on the location's own edits or a manual recalculate call. Wiring in demographics (`population`/`median_income`/`growth_rate`) was explicitly left out -- that needs a real external data source and belongs to the Market Refresh Engine (ADR-0004, Phase 3), not pulled forward here. |
 | Photos | Medium | Done (ADR-0018). `photos` (designed in ADR-0003, never built) now supports locations and competitors -- the two entities with a detail panel to upload from. Local disk storage for now (same MVP decision already made and proven in the sibling LPC project), served unauthenticated at `/media/...` behind an unguessable UUID filename, not real access control -- disclosed tradeoff, revisit before this is customer-facing. Pillow compresses (max 2048px, quality 85), strips EXIF, and doubles as content-type verification. This closes out every item on the Phase 2 roadmap. |
 
-## Phase 3 — Automation & Monetization (in progress)
+## Phase 3 — Automation & Monetization (done)
 
 | Feature | Rank | Why this rank |
 |---|---|---|
@@ -45,13 +45,13 @@ Goal: usable product in customer hands as fast as possible. Ordered by dependenc
 | Automated updates (Market Refresh Engine, ADR-0004 — already designed) | High | Done (ADR-0020). An admin-triggered, synchronous refresh re-checks up to 20 locations (oldest/never-checked first) against free providers and queues one combined `validation_queue` proposal per location with any drift -- never writes to `locations` directly. Scope narrowed from ADR-0004's original design: new-competitor-POI, closed/moved-business, and duplicate-location detection deferred (see ADR-0020 point 1 for why); v1 ships address-drift + Census demographics only. |
 | External APIs (free-source providers per ADR-0004) | Medium | Done, folded into the line above -- OpenStreetMap (via the existing reverse-geocoding) for address drift, and US Census (Geocoder + ACS 5-Year Estimates, free key required) for `population`/`median_income`/`growth_rate`, which also retroactively fills in the demographic fields Phase 1/2 scoring left unused (ADR-0009, ADR-0017). |
 
-## Phase 4 — Advanced (not started, gated on Phase 3)
+## Phase 4 — Advanced (in progress)
 
-| Feature | Rank |
-|---|---|
-| AI recommendations | Medium |
-| Advanced analytics | Medium |
-| Enterprise features | Low — until real paying customers signal demand for them |
+| Feature | Rank | Why this rank |
+|---|---|---|
+| Advanced analytics | Medium | Done (ADR-0021). Built the never-implemented `opportunities` pursuit-workflow table (designed ADR-0003, fell through every prior phase) as a prerequisite, then a `GET /analytics/summary` dashboard: portfolio composition, opportunity-score distribution, top prospects, fastest-growing markets (first real consumer of ADR-0020's demographics), most-contested markets, and the org's own pipeline funnel. Pure aggregation over existing data -- no new cost, no new dependency (hand-rolled bar lists, not a charting library). |
+| AI recommendations | Medium | Deferred. Needs a paid LLM API call per request -- an ongoing cost unlike every free/keyless-except-Census source used elsewhere in this project. Requires its own ADR and explicit sign-off before being built, same gating precedent as ADR-0004/ADR-0019. |
+| Enterprise features | Low — until real paying customers signal demand for them | Not started. |
 
 ## Explicitly out of scope (for now)
 

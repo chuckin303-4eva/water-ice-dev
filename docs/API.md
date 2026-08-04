@@ -93,7 +93,15 @@ JWT bearer tokens (see [ARCHITECTURE.md](ARCHITECTURE.md) and
 | GET | `/billing/invoices` | List billing history for your organization, newest first (ADR-0019) | Yes (admin) |
 | POST | `/market-refresh/runs` | Trigger a Market Refresh run: re-checks up to 20 locations (oldest/never-checked first) against OpenStreetMap (address drift) and US Census (demographics), queuing one combined `validation_queue` proposal per location with any drift. Synchronous -- can take up to ~a minute. Never writes to `locations` directly (ADR-0020) | Yes (admin) |
 | GET | `/market-refresh/runs` | List past refresh runs, newest first | Yes (admin) |
+| POST | `/opportunities` | Start pursuing a location (`{location_id, stage?}`, default stage `identified`). 422 for an unknown location, an invalid stage, or an `assigned_user_id` outside your organization (ADR-0021) | Yes |
+| GET | `/opportunities` | List your organization's pursuits (`?stage=`, `?location_id=` both optional filters) | Yes |
+| GET | `/opportunities/{id}` | Get one pursuit. 404 outside your organization | Yes |
+| PUT | `/opportunities/{id}` | Update stage/assignee/priority/target date/notes. 404 outside your organization, 422 for an invalid stage/assignee | Yes |
+| DELETE | `/opportunities/{id}` | Stop tracking a pursuit (hard delete -- unlike locations, there's no audit requirement on abandoning a pursuit) | Yes |
+| GET | `/analytics/summary` | Portfolio-wide location/competitor/demographic aggregates (status breakdown, score distribution, top prospects, growth markets from ADR-0020's demographics, most-contested markets) plus your organization's own pursuit-pipeline funnel (ADR-0021) | Yes |
 
 `PUT /locations/{id}` also accepts `population`/`median_income`/`growth_rate` (ADR-0020) -- these exist for the Market Refresh Engine's approved proposals to write through; no manual-entry UI prompts for them today, though a human could still set them directly via this endpoint.
+
+Unlike locations/competitors, `opportunities` **is** organization-scoped (ADR-0021) -- it tracks one organization's specific pursuit of a location, not the shared location data itself.
 
 Locations and competitors are not organization-scoped (ADR-0002: shared market intelligence, not per-tenant private data) -- any authenticated user can create/view/edit either.
